@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Tipografía principal ===== */
+body {
+  @apply bg-gradient-to-br from-[#FDF6F0] to-[#FAE1DD] text-[#2F2E41] font-[Inter];
+}
+
+/* ===== Animaciones suaves ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* ===== Scrollbar elegante ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #E2BFD9, #F4D160);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #E2BFD9, #F1C232);
+}
+
+/* ===== Estilo de inputs y modales ===== */
+input,
+textarea,
+select {
+  @apply focus:ring-2 focus:ring-[#F4D160] focus:outline-none;
+}
+
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* ===== Fuente secundaria para títulos elegantes ===== */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&display=swap');
