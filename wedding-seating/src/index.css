@@ -52,3 +52,30 @@ button {
 
 /* ===== Fuente secundaria para títulos elegantes ===== */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&display=swap');
+
+/* ===== Mejoras para las mesas dinámicas ===== */
+.table-container {
+  transition: all 0.3s ease-in-out;
+}
+
+/* ===== Mejor legibilidad para nombres en mesas ===== */
+.table-guest-name {
+  text-shadow: 0.5px 0.5px 1px rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+/* ===== Asegurar que el PDF exporte correctamente ===== */
+@media print {
+  .table-container {
+    break-inside: avoid;
+  }
+}
+
+/* ===== Smooth scaling para mesas ===== */
+.table-scale {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.table-scale:hover {
+  transform: scale(1.05);
+}

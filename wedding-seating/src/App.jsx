@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Users, Plus, Trash2, UserPlus, Edit3 } from 'lucide-react';
+import { Search, Users, Plus, Trash2, UserPlus, Edit3, FileUp  } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 
 const WeddingSeatingApp = () => {
   const [tables, setTables] = useState([]);
@@ -11,6 +12,7 @@ const WeddingSeatingApp = () => {
   const [draggedGuest, setDraggedGuest] = useState(null);
   const [showAddTable, setShowAddTable] = useState(false);
   const [showAddGuests, setShowAddGuests] = useState(false);
+  const [showImportGuests, setShowImportGuests] = useState(false);
   const [newGuestNames, setNewGuestNames] = useState('');
   const [newTableData, setNewTableData] = useState({ name: '', type: 'round', capacity: 10 });
   const canvasRef = useRef(null);
@@ -18,21 +20,222 @@ const WeddingSeatingApp = () => {
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [tableSummary, setTableSummary] = useState(null);
+  const [importFile, setImportFile] = useState(null);
+  const [importStatus, setImportStatus] = useState('');
 
-
-
-  // Cargar y guardar datos desde localStorage
+  // 🔹 Cargar datos guardados
   useEffect(() => {
-    const savedTables = localStorage.getItem('wedding-tables');
-    const savedGuests = localStorage.getItem('wedding-guests');
-    if (savedTables) setTables(JSON.parse(savedTables));
-    if (savedGuests) setGuests(JSON.parse(savedGuests));
+    const loadSavedData = () => {
+      try {
+        const savedTables = localStorage.getItem('wedding-tables');
+        const savedGuests = localStorage.getItem('wedding-guests');
+        
+        if (savedTables) {
+          const parsedTables = JSON.parse(savedTables);
+          setTables(parsedTables);
+          console.log('Mesas cargadas:', parsedTables.length);
+        }
+        
+        if (savedGuests) {
+          const parsedGuests = JSON.parse(savedGuests);
+          setGuests(parsedGuests);
+          console.log('Invitados cargados:', parsedGuests.length);
+        }
+      } catch (err) {
+        console.error("Error cargando localStorage:", err);
+        // Opcional: resetear a valores por defecto
+        setTables([]);
+        setGuests([]);
+      }
+    };
+
+    loadSavedData();
   }, []);
 
+  // 🔹 Guardar automáticamente cuando cambian los datos
   useEffect(() => {
-    localStorage.setItem('wedding-tables', JSON.stringify(tables));
-    localStorage.setItem('wedding-guests', JSON.stringify(guests));
-  }, [tables, guests]);
+    // Solo guardar si hay datos
+    if (tables.length > 0 || guests.length > 0) {
+      try {
+        localStorage.setItem('wedding-tables', JSON.stringify(tables));
+        localStorage.setItem('wedding-guests', JSON.stringify(guests));
+        console.log('Datos guardados automáticamente');
+      } catch (err) {
+        console.error("Error guardando en localStorage:", err);
+      }
+    }
+  }, [tables, guests]); // Se ejecuta cuando cambian tables o guests
+
+  // 🔹 Guardar manualmente
+  const saveProgress = () => {
+    try {
+      localStorage.setItem('wedding-tables', JSON.stringify(tables));
+      localStorage.setItem('wedding-guests', JSON.stringify(guests));
+      
+      // Verificar que se guardó correctamente
+      const savedTables = localStorage.getItem('wedding-tables');
+      const savedGuests = localStorage.getItem('wedding-guests');
+      
+      if (savedTables && savedGuests) {
+        alert('Progreso guardado correctamente 🥂');
+      } else {
+        alert('Error al guardar el progreso');
+      }
+    } catch (err) {
+      console.error("Error guardando:", err);
+      alert('Error al guardar el progreso');
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImportFile(file);
+      setImportStatus(`Archivo seleccionado: ${file.name}`);
+    }
+  };
+
+  // 🔹 Procesar archivo Excel/CSV
+  const processImportFile = () => {
+    if (!importFile) {
+      setImportStatus('Por favor, selecciona un archivo');
+      return;
+    }
+
+    setImportStatus('Procesando archivo...');
+
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // Obtener la primera hoja
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convertir a JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        // Extraer nombres (asumiendo que están en la primera columna)
+        const names = jsonData
+          .flat() // Aplanar el array
+          .filter(name => name && typeof name === 'string' && name.trim() !== '') // Filtrar valores válidos
+          .map(name => name.trim()); // Limpiar espacios
+
+        if (names.length === 0) {
+          setImportStatus('No se encontraron nombres en el archivo');
+          return;
+        }
+
+        // Crear nuevos invitados
+        const newGuests = names.map(name => ({
+          id: Date.now() + Math.random(),
+          name: name,
+          tableId: null,
+          seatIndex: null
+        }));
+
+        // Añadir a los invitados existentes
+        setGuests(prev => [...prev, ...newGuests]);
+        setImportStatus(`✅ ${newGuests.length} invitados importados correctamente`);
+        setImportFile(null);
+        
+        // Cerrar modal después de 2 segundos
+        setTimeout(() => {
+          setShowImportGuests(false);
+          setImportStatus('');
+        }, 2000);
+
+      } catch (error) {
+        console.error('Error procesando archivo:', error);
+        setImportStatus('Error al procesar el archivo. Asegúrate de que es un Excel o CSV válido.');
+      }
+    };
+
+    reader.onerror = () => {
+      setImportStatus('Error al leer el archivo');
+    };
+
+    reader.readAsArrayBuffer(importFile);
+  };
+
+  // 🔹 Función alternativa para CSV simple (sin librería externa)
+  const processCSVFile = () => {
+    if (!importFile) {
+      setImportStatus('Por favor, selecciona un archivo');
+      return;
+    }
+
+    setImportStatus('Procesando archivo CSV...');
+
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const csvText = e.target.result;
+        
+        // Procesar CSV simple (una columna con nombres)
+        const names = csvText
+          .split('\n') // Dividir por líneas
+          .map(line => line.trim()) // Limpiar espacios
+          .filter(line => line !== '') // Eliminar líneas vacías
+          .map(line => {
+            // Si hay comas, tomar solo la primera columna
+            const columns = line.split(',');
+            return columns[0].trim().replace(/^"|"$/g, ''); // Remover comillas si las hay
+          })
+          .filter(name => name !== ''); // Filtrar nombres vacíos
+
+        if (names.length === 0) {
+          setImportStatus('No se encontraron nombres en el archivo CSV');
+          return;
+        }
+
+        // Crear nuevos invitados
+        const newGuests = names.map(name => ({
+          id: Date.now() + Math.random(),
+          name: name,
+          tableId: null,
+          seatIndex: null
+        }));
+
+        setGuests(prev => [...prev, ...newGuests]);
+        setImportStatus(`✅ ${newGuests.length} invitados importados desde CSV`);
+        setImportFile(null);
+        
+        setTimeout(() => {
+          setShowImportGuests(false);
+          setImportStatus('');
+        }, 2000);
+
+      } catch (error) {
+        console.error('Error procesando CSV:', error);
+        setImportStatus('Error al procesar el archivo CSV');
+      }
+    };
+
+    reader.readAsText(importFile);
+  };
+
+  // 🔹 Función inteligente que detecta el tipo de archivo
+  const handleImport = () => {
+    if (!importFile) {
+      setImportStatus('Por favor, selecciona un archivo');
+      return;
+    }
+
+    const fileName = importFile.name.toLowerCase();
+    
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      processImportFile(); // Procesar Excel
+    } else if (fileName.endsWith('.csv')) {
+      processCSVFile(); // Procesar CSV
+    } else {
+      setImportStatus('Formato no soportado. Usa .xlsx, .xls o .csv');
+    }
+  };
 
   useEffect(() => {
     if (!isDragging) return;
@@ -119,19 +322,117 @@ const WeddingSeatingApp = () => {
   const exportPDF = async () => {
     if (!canvasRef.current) return;
 
-    // Captura el canvas como imagen
-    const canvasElement = canvasRef.current;
-    const canvasImage = await html2canvas(canvasElement, { scale: 2 });
+    try {
+      // Crear PDF principal con el diseño visual
+      const canvasElement = canvasRef.current;
+      const canvasImage = await html2canvas(canvasElement, { 
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#FDF6F0'
+      });
 
-    const imgData = canvasImage.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'px',
-      format: [canvasElement.scrollWidth, canvasElement.scrollHeight]
-    });
+      const imgData = canvasImage.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvasElement.scrollWidth, canvasElement.scrollHeight]
+      });
 
-    pdf.addImage(imgData, 'PNG', 0, 0, canvasElement.scrollWidth, canvasElement.scrollHeight);
-    pdf.save('wedding-seating.pdf');
+      // Página 1: Diseño visual
+      pdf.addImage(imgData, 'PNG', 0, 0, canvasElement.scrollWidth, canvasElement.scrollHeight);
+      
+      // Página 2: Resumen detallado por mesa
+      pdf.addPage();
+      
+      // Título del resumen
+      pdf.setFontSize(20);
+      pdf.setTextColor(60, 42, 33); // Color #3C2A21
+      pdf.text('Resumen de Asignación de Mesas', 20, 30);
+      
+      let yPosition = 60;
+      
+      // Información de cada mesa
+      tables.forEach((table, index) => {
+        const assignedGuests = guests.filter(g => g.tableId === table.id);
+        
+        // Si no hay espacio para otra mesa, crear nueva página
+        if (yPosition > 250) {
+          pdf.addPage();
+          yPosition = 30;
+        }
+        
+        // Encabezado de mesa
+        pdf.setFontSize(16);
+        pdf.setTextColor(92, 64, 51); // Color #5C4033
+        pdf.text(`${table.name} (${assignedGuests.length}/${table.capacity} invitados)`, 20, yPosition);
+        
+        yPosition += 10;
+        
+        // Lista de invitados
+        pdf.setFontSize(10);
+        pdf.setTextColor(60, 42, 33); // Color #3C2A21
+        
+        if (assignedGuests.length === 0) {
+          pdf.text('  - Sin invitados asignados', 25, yPosition);
+          yPosition += 15;
+        } else {
+          assignedGuests.forEach(guest => {
+            const seatInfo = guest.seatIndex !== null ? ` - Asiento ${guest.seatIndex + 1}` : '';
+            pdf.text(`  • ${guest.name}${seatInfo}`, 25, yPosition);
+            yPosition += 8;
+            
+            // Si se acaba el espacio en la página
+            if (yPosition > 270) {
+              pdf.addPage();
+              yPosition = 30;
+            }
+          });
+        }
+        
+        yPosition += 10; // Espacio entre mesas
+      });
+      
+      // Página 3: Resumen general
+      pdf.addPage();
+      pdf.setFontSize(20);
+      pdf.setTextColor(60, 42, 33);
+      pdf.text('Resumen General de la Boda', 20, 30);
+      
+      pdf.setFontSize(12);
+      let summaryY = 60;
+      
+      const totalGuests = guests.length;
+      const assignedGuests = guests.filter(g => g.tableId !== null).length;
+      const unassignedGuests = guests.filter(g => g.tableId === null).length;
+      
+      pdf.text(`Total de invitados: ${totalGuests}`, 20, summaryY);
+      summaryY += 15;
+      pdf.text(`Invitados asignados: ${assignedGuests}`, 20, summaryY);
+      summaryY += 15;
+      pdf.text(`Invitados sin asignar: ${unassignedGuests}`, 20, summaryY);
+      summaryY += 15;
+      pdf.text(`Total de mesas: ${tables.length}`, 20, summaryY);
+      summaryY += 25;
+      
+      // Mesas con capacidad
+      pdf.setFontSize(14);
+      pdf.text('Capacidad por Mesa:', 20, summaryY);
+      summaryY += 10;
+      
+      pdf.setFontSize(10);
+      tables.forEach(table => {
+        const assignedCount = guests.filter(g => g.tableId === table.id).length;
+        pdf.text(`  ${table.name}: ${assignedCount}/${table.capacity} (${((assignedCount/table.capacity)*100).toFixed(0)}% llena)`, 25, summaryY);
+        summaryY += 8;
+      });
+
+      pdf.save('planificacion-boda-completa.pdf');
+      
+    } catch (error) {
+      console.error('Error al exportar PDF:', error);
+      alert('Error al exportar el PDF. Por favor, intenta nuevamente.');
+    }
   };
 
 
@@ -210,6 +511,17 @@ const WeddingSeatingApp = () => {
     });
   };
 
+  // 🔹 Función para resetear todo (opcional, para testing)
+  const resetAllData = () => {
+    if (confirm('¿Estás seguro de que quieres eliminar todos los datos?')) {
+      localStorage.removeItem('wedding-tables');
+      localStorage.removeItem('wedding-guests');
+      setTables([]);
+      setGuests([]);
+      alert('Datos reseteados correctamente');
+    }
+  };
+
 
 
   const handleDragStart = (e, guest) => setDraggedGuest(guest);
@@ -227,9 +539,6 @@ const WeddingSeatingApp = () => {
 
   const TableComponent = ({ table }) => {
     const isRound = table.type === 'round';
-    const radius = 70;
-    const rectWidth = 150;
-    const rectHeight = 80;
     const [menuVisible, setMenuVisible] = React.useState(false);
     const [menuPos, setMenuPos] = React.useState({ x: 0, y: 0 });
 
@@ -246,26 +555,80 @@ const WeddingSeatingApp = () => {
       return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
+    // Obtener invitados asignados a esta mesa
+    const assignedGuests = guests.filter(g => g.tableId === table.id);
+    
+    // Calcular tamaño dinámico basado en la cantidad de invitados
+    const getTableSize = () => {
+      const baseSize = 140; // Tamaño base
+      const guestCount = assignedGuests.length;
+      
+      if (guestCount <= 4) return baseSize;
+      if (guestCount <= 6) return baseSize + 20;
+      if (guestCount <= 8) return baseSize + 40;
+      return baseSize + 60; // Para más de 8 invitados
+    };
+
+    const tableSize = getTableSize();
+    const radius = tableSize / 2;
+    const rectWidth = tableSize + 40;
+    const rectHeight = tableSize;
+
+    // Calcular tamaño de fuente dinámico
+    const getFontSize = () => {
+      const guestCount = assignedGuests.length;
+      if (guestCount <= 4) return 'text-xs';
+      if (guestCount <= 6) return 'text-[11px]';
+      if (guestCount <= 8) return 'text-[10px]';
+      return 'text-[9px]';
+    };
+
+    const fontSize = getFontSize();
+
     return (
       <div
-        className="absolute select-none transition-transform duration-200 cursor-move"
+        className="absolute select-none transition-all duration-300 cursor-move"
         style={{ left: table.x, top: table.y }}
-        onMouseDown={(e) => handleMouseDownTable(e, table.id)} // <-- aquí usamos tu arrastre manual
-        onContextMenu={handleContextMenu}>
-
+        onMouseDown={(e) => handleMouseDownTable(e, table.id)}
+        onContextMenu={handleContextMenu}
+      >
         {/* Contenedor mesa */}
         <div
           className={`relative ${isRound ? 'rounded-full' : 'rounded-xl'}
-                      bg-[#FFF8F3] shadow-lg border border-amber-300
-                      hover:scale-105 transition-transform duration-300 cursor-pointer`}
+                      bg-[#FFF8F3] shadow-lg border-2 border-amber-300
+                      hover:scale-105 transition-all duration-300 cursor-pointer
+                      flex items-center justify-center`}
           style={{
-            width: isRound ? radius * 2 : rectWidth,
-            height: isRound ? radius * 2 : rectHeight,
+            width: isRound ? tableSize : rectWidth,
+            height: isRound ? tableSize : rectHeight,
+            minHeight: isRound ? tableSize : rectHeight,
           }}
         >
-          {/* Nombre de la mesa */}
-          <div className="absolute inset-0 flex items-center justify-center font-playfair text-lg text-[#3C2A21] font-semibold pointer-events-none">
-            {table.name}
+          {/* Área central para nombres de invitados - SIEMPRE muestra todos */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 pointer-events-none overflow-hidden">
+            {assignedGuests.length === 0 ? (
+              // Mostrar nombre de mesa si no hay invitados
+              <div className="font-playfair text-lg text-[#3C2A21] font-semibold text-center">
+                {table.name}
+              </div>
+            ) : (
+              // SIEMPRE mostrar todos los nombres completos
+              <div className="w-full h-full flex flex-col items-center justify-center space-y-1 p-1">
+                {assignedGuests.map(guest => (
+                  <div 
+                    key={guest.id}
+                    className={`${fontSize} text-[#3C2A21] font-medium text-center leading-tight w-full px-1 truncate`}
+                    title={guest.name}
+                    style={{
+                      lineHeight: '1.1',
+                      margin: '1px 0'
+                    }}
+                  >
+                    {guest.name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Menú contextual */}
@@ -292,7 +655,7 @@ const WeddingSeatingApp = () => {
                   className="px-4 py-2 hover:bg-gray-500 hover:text-white"
                   onClick={() => {
                     setMenuVisible(false);
-                    setTableSummary(table); // Abrir resumen
+                    setTableSummary(table);
                   }}
                 >
                   Ver Resumen
@@ -317,16 +680,18 @@ const WeddingSeatingApp = () => {
             let seatX, seatY;
 
             if (isRound) {
-              seatX = radius + Math.cos(angle) * (radius + 25) - 20;
-              seatY = radius + Math.sin(angle) * (radius + 25) - 20;
+              seatX = radius + Math.cos(angle) * (radius + 30) - 20;
+              seatY = radius + Math.sin(angle) * (radius + 30) - 20;
             } else {
               const perSide = Math.ceil(table.capacity / 2);
+              const seatSpacing = rectWidth / Math.max(perSide - 1, 1);
+              
               if (index < perSide) {
-                seatX = (index / (perSide - 1)) * rectWidth - 20;
-                seatY = -30;
+                seatX = (index * seatSpacing) - 20;
+                seatY = -35;
               } else {
-                seatX = ((index - perSide) / (table.capacity - perSide - 1)) * rectWidth - 20;
-                seatY = rectHeight + 10;
+                seatX = ((index - perSide) * seatSpacing) - 20;
+                seatY = rectHeight + 15;
               }
             }
 
@@ -348,7 +713,7 @@ const WeddingSeatingApp = () => {
                   }`}
                 style={{ left: seatX, top: seatY }}
                 data-table-id={table.id}
-                data-seat-index={index} // <<--- esto es importante
+                data-seat-index={index}
               >
                 {/* Iniciales */}
                 {guest ? guest.name.split(' ').map(n => n[0]).join('').slice(0, 2) : index + 1}
@@ -358,8 +723,8 @@ const WeddingSeatingApp = () => {
                   <button
                     className="absolute -top-2 -right-2 w-4 h-4 text-[10px] bg-white text-black rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white z-50"
                     onClick={(e) => {
-                      e.stopPropagation(); // evitar arrastrar mesa
-                      assignGuestToSeat(guest.id, null, null); // desasignar
+                      e.stopPropagation();
+                      assignGuestToSeat(guest.id, null, null);
                     }}
                   >
                     ×
@@ -373,15 +738,12 @@ const WeddingSeatingApp = () => {
                   </span>
                 )}
               </div>
-
             );
           })}
         </div>
       </div>
     );
   };
-
-
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-[#FDF6F0] to-[#FAE1DD] text-[#3C2A21] font-inter">
@@ -402,11 +764,31 @@ const WeddingSeatingApp = () => {
             <UserPlus size={20} />
             Añadir Invitados
           </button>
+           <button
+              onClick={() => setShowImportGuests(true)}
+              className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 transition-all"
+            >
+              <FileUp size={20} />
+              Importar Excel/CSV
+            </button>
           <button
             onClick={exportPDF}
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2"
           >
             Exportar PDF
+          </button>
+          <button
+            onClick={saveProgress}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2"
+          >
+            💾 Guardar Progreso
+          </button>
+          <button
+            onClick={resetAllData}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2"
+          >
+            <Trash2 size={20} />
+            Resetear Todo
           </button>
         </div>
 
@@ -637,6 +1019,92 @@ const WeddingSeatingApp = () => {
           </div>
         </div>
       )}
+      {/* Modal importar invitados desde Excel/CSV */}
+        {showImportGuests && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 shadow-xl w-96">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <FileUp size={20} />
+                Importar Invitados
+              </h3>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-3">
+                  Selecciona un archivo Excel (.xlsx, .xls) o CSV con una columna de nombres.
+                </p>
+                
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="file-input"
+                  />
+                  <label
+                    htmlFor="file-input"
+                    className="cursor-pointer block"
+                  >
+                    <FileUp className="mx-auto mb-2 text-gray-400" size={32} />
+                    <span className="text-sm text-gray-600">
+                      {importFile ? importFile.name : 'Haz clic para seleccionar archivo'}
+                    </span>
+                    <br />
+                    <span className="text-xs text-gray-500">
+                      Formatos soportados: .xlsx, .xls, .csv
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {importStatus && (
+                <div className={`p-3 rounded-lg mb-4 text-sm ${
+                  importStatus.includes('✅') 
+                    ? 'bg-green-100 text-green-800 border border-green-200' 
+                    : importStatus.includes('Error') || importStatus.includes('No se encontraron')
+                    ? 'bg-red-100 text-red-800 border border-red-200'
+                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                }`}>
+                  {importStatus}
+                </div>
+              )}
+
+              <div className="flex justify-between gap-3">
+                <button 
+                  onClick={() => {
+                    setShowImportGuests(false);
+                    setImportFile(null);
+                    setImportStatus('');
+                  }}
+                  className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 flex-1"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleImport}
+                  disabled={!importFile}
+                  className={`px-4 py-2 rounded text-white flex-1 ${
+                    importFile 
+                      ? 'bg-purple-500 hover:bg-purple-600' 
+                      : 'bg-purple-300 cursor-not-allowed'
+                  }`}
+                >
+                  Importar
+                </button>
+              </div>
+
+              {/* Información de formato */}
+              <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <h4 className="font-semibold text-sm mb-2 text-amber-800">Formato esperado:</h4>
+                <p className="text-xs text-amber-700">
+                  • <strong>Excel/CSV</strong> con una columna de nombres<br/>
+                  • <strong>Ejemplo:</strong> Columna A: "Ana García", "Carlos López", etc.<br/>
+                  • Se ignorarán las demás columnas
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };
