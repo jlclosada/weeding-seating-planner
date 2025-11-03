@@ -422,9 +422,9 @@ const WeddingSeatingApp = () => {
           return;
         }
 
-        // Crear nuevos invitados
-        const newGuests = names.map(name => ({
-          id: Date.now() + Math.random(),
+        // Crear nuevos invitados con IDs únicos
+        const newGuests = names.map((name, index) => ({
+          id: Date.now() + index + Math.random() * 10000,
           name: name,
           tableId: null,
           seatIndex: null,
@@ -990,8 +990,8 @@ const WeddingSeatingApp = () => {
   // Añadir invitados
   const addGuests = () => {
     const names = newGuestNames.split('\n').filter(n => n.trim());
-    const newGuests = names.map(name => ({
-      id: Date.now() + Math.random(),
+    const newGuests = names.map((name, index) => ({
+      id: Date.now() + index + Math.random() * 10000,
       name: name.trim(),
       tableId: null,
       seatIndex: null,
