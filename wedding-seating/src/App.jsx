@@ -8,18 +8,30 @@ import toast, { Toaster } from 'react-hot-toast';
 
 // Grupos predefinidos iniciales
 const DEFAULT_GROUPS = [
-  { id: 'family', name: 'Familia', color: '#a8b5a1' },
-  { id: 'friends', name: 'Amigos', color: '#FACCC0' },
-  { id: 'work', name: 'Trabajo', color: '#8b9ca6' },
-  { id: 'couple', name: 'Pareja', color: '#c9b8a8' },
-  { id: 'other', name: 'Otros', color: '#b8a5b0' }
+  { id: 'family', name: 'Familia', color: '#BAFFC9' },      // Verde menta
+  { id: 'friends', name: 'Amigos', color: '#FFB3BA' },      // Rosa pastel
+  { id: 'work', name: 'Trabajo', color: '#BAE1FF' },        // Azul cielo
+  { id: 'couple', name: 'Pareja', color: '#E0BBE4' },       // Lavanda
+  { id: 'other', name: 'Otros', color: '#FFDFBA' }          // Melocotón
 ];
 
-// Colores predefinidos para seleccionar
+// Colores predefinidos para seleccionar - Paleta pastel variada
 const AVAILABLE_COLORS = [
-  '#a8b5a1', '#7fa99b', '#8b9ca6', '#c9b8a8', '#b8a5b0',
-  '#d4c4b0', '#9eb3b6', '#b8a892', '#a5b8ad', '#c4b5a5',
-  '#8fa89d', '#b0a699', '#97a8ab', '#baa898', '#a3b5a8'
+  '#FFB3BA', // Rosa pastel
+  '#FFDFBA', // Melocotón
+  '#FFFFBA', // Amarillo pastel
+  '#BAFFC9', // Verde menta
+  '#BAE1FF', // Azul cielo
+  '#E0BBE4', // Lavanda
+  '#FFDFD3', // Coral claro
+  '#D4F1F4', // Turquesa claro
+  '#C9E4CA', // Verde salvia
+  '#FEC8D8', // Rosa chicle
+  '#E7FFAC', // Lima pastel
+  '#D5AAFF', // Lila
+  '#B0E0E6', // Azul powder
+  '#FFE4E1', // Rosa misty
+  '#F0E68C'  // Amarillo khaki
 ];
 
 // Templates predefinidos
@@ -38,9 +50,9 @@ const EVENT_TEMPLATES = [
       { name: 'Mesa 5', type: 'round', capacity: 10 },
     ],
     groups: [
-      { id: 'family', name: 'Familia', color: '#a8b5a1' },
-      { id: 'friends', name: 'Amigos', color: '#FACCC0' },
-      { id: 'couple', name: 'Pareja', color: '#c9b8a8' },
+      { id: 'family', name: 'Familia', color: '#BAFFC9' },
+      { id: 'friends', name: 'Amigos', color: '#FFB3BA' },
+      { id: 'couple', name: 'Pareja', color: '#E0BBE4' },
     ]
   },
   {
@@ -55,9 +67,9 @@ const EVENT_TEMPLATES = [
       { name: 'Equipo C', type: 'round', capacity: 8 },
     ],
     groups: [
-      { id: 'executives', name: 'Ejecutivos', color: '#8b9ca6' },
-      { id: 'employees', name: 'Empleados', color: '#b8a5b0' },
-      { id: 'clients', name: 'Clientes', color: '#c9b8a8' },
+      { id: 'executives', name: 'Ejecutivos', color: '#BAE1FF' },
+      { id: 'employees', name: 'Empleados', color: '#D4F1F4' },
+      { id: 'clients', name: 'Clientes', color: '#FFDFD3' },
     ]
   },
   {
@@ -72,9 +84,9 @@ const EVENT_TEMPLATES = [
       { name: 'Compañeros', type: 'round', capacity: 10 },
     ],
     groups: [
-      { id: 'family', name: 'Familia', color: '#a8b5a1' },
-      { id: 'close-friends', name: 'Amigos Cercanos', color: '#FACCC0' },
-      { id: 'school', name: 'Compañeros', color: '#d4c4b0' },
+      { id: 'family', name: 'Familia', color: '#BAFFC9' },
+      { id: 'close-friends', name: 'Amigos Cercanos', color: '#FEC8D8' },
+      { id: 'school', name: 'Compañeros', color: '#E7FFAC' },
     ]
   }
 ];
