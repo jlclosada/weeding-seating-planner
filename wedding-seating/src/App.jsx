@@ -129,7 +129,7 @@ const WeddingSeatingApp = () => {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Cerrado por defecto
 
   // Nuevos estados para funcionalidades avanzadas
   const [showTemplates, setShowTemplates] = useState(false);
@@ -1874,32 +1874,32 @@ const WeddingSeatingApp = () => {
       <div className="flex-1 relative overflow-auto z-10">
         {/* Header minimalista y elegante - Fijo */}
         <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 shadow-sm z-40">
-          <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 md:py-4">
+          <div className="px-4 md:px-6 py-3 md:py-4">
             <div className="flex items-center justify-between">
-              {/* Logo y título */}
-              <div className="flex items-center gap-2 md:gap-4">
-                <div className="flex items-center gap-1.5 md:gap-2">
+              {/* Logo y título - Más a la izquierda */}
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#a8b5a1]"></div>
                   <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#7fa99b]"></div>
                   <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#8b9ca6]"></div>
                 </div>
-                <div className="border-l border-gray-300 pl-2 md:pl-4">
+                <div className="border-l border-gray-300 pl-2 md:pl-3">
                   <h1 className="text-base md:text-xl font-medium text-gray-900 tracking-tight">Wedding Seating Planner</h1>
                   <p className="text-[10px] md:text-xs text-gray-500 mt-0.5">By Jose Luis Caceres</p>
                 </div>
               </div>
 
-              {/* Desktop: Stats */}
-              <div className="hidden lg:flex items-center gap-3 text-sm">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="w-2 h-2 rounded-full bg-[#a8b5a1]"></div>
-                  <span className="font-medium text-gray-700">{tables.length}</span>
-                  <span className="text-gray-500">mesas</span>
+              {/* Desktop: Stats - Más a la derecha */}
+              <div className="hidden lg:flex items-center gap-4 text-sm ml-auto">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#a8b5a1]"></div>
+                  <span className="font-semibold text-gray-900">{tables.length}</span>
+                  <span className="text-gray-600">mesas</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="w-2 h-2 rounded-full bg-[#7fa99b]"></div>
-                  <span className="font-medium text-gray-700">{guests.length}</span>
-                  <span className="text-gray-500">invitados</span>
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#7fa99b]"></div>
+                  <span className="font-semibold text-gray-900">{guests.length}</span>
+                  <span className="text-gray-600">invitados</span>
                 </div>
               </div>
 
@@ -1930,42 +1930,53 @@ const WeddingSeatingApp = () => {
         }`}>
           <div className="max-w-full">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-4">
-              <div className="flex items-center justify-between gap-4">
-                {/* SECCIÓN IZQUIERDA: Crear elementos */}
+              <div className="flex items-center justify-between gap-3">
+                {/* SECCIÓN IZQUIERDA: Crear elementos - Compactos cuando sidebar abierto */}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowAddTable(true)}
-                    className="bg-[#a8b5a1] hover:bg-[#8b9e8a] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                    className={`bg-[#a8b5a1] hover:bg-[#8b9e8a] text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                      sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'px-3 py-2.5 gap-1.5'
+                    }`}
+                    title="Nueva Mesa"
                   >
                     <Plus size={18} />
-                    <span>Mesa</span>
+                    {sidebarCollapsed && <span>Mesa</span>}
                   </button>
                   <button
                     onClick={() => setShowAddGuests(true)}
-                    className="bg-[#7fa99b] hover:bg-[#6b8f82] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                    className={`bg-[#7fa99b] hover:bg-[#6b8f82] text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                      sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'px-3 py-2.5 gap-1.5'
+                    }`}
+                    title="Añadir Invitados"
                   >
                     <UserPlus size={18} />
-                    <span>Invitados</span>
+                    {sidebarCollapsed && <span>Invitados</span>}
                   </button>
                   <button
                     onClick={() => setShowManageGroups(true)}
-                    className="bg-[#c9b8a8] hover:bg-[#b5a598] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                    className={`bg-[#c9b8a8] hover:bg-[#b5a598] text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                      sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'px-3 py-2.5 gap-1.5'
+                    }`}
+                    title="Gestionar Grupos"
                   >
                     <Tag size={18} />
-                    <span>Grupos</span>
+                    {sidebarCollapsed && <span>Grupos</span>}
                   </button>
                 </div>
 
-                {/* SECCIÓN CENTRO: Búsqueda */}
-                <div className="flex-1 max-w-sm">
+                {/* SECCIÓN CENTRO: Búsqueda - Adaptativa */}
+                <div className={`flex-1 transition-all ${
+                  sidebarCollapsed ? 'max-w-md' : 'max-w-xs'
+                }`}>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                       type="text"
-                      placeholder="Buscar invitado en mesas..."
+                      placeholder={sidebarCollapsed ? "Buscar invitado en mesas..." : "Buscar..."}
                       value={searchQuery}
                       onChange={(e) => searchGuestInCanvas(e.target.value)}
-                      className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:border-[#a8b5a1] focus:ring-2 focus:ring-[#a8b5a1]/20 transition-all"
+                      className="w-full pl-9 pr-9 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:border-[#a8b5a1] focus:ring-2 focus:ring-[#a8b5a1]/20 transition-all"
                     />
                     {searchQuery && (
                       <button
@@ -1987,10 +1998,13 @@ const WeddingSeatingApp = () => {
                   <div className="relative" ref={actionsMenuRef}>
                     <button
                       onClick={() => setShowActionsMenu(!showActionsMenu)}
-                      className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                      className={`bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                        sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'px-3 py-2.5 gap-1.5'
+                      }`}
+                      title="Acciones"
                     >
                       <Wand2 size={18} />
-                      <span>Acciones</span>
+                      {sidebarCollapsed && <span>Acciones</span>}
                       <ChevronDown size={16} className={`transition-transform ${showActionsMenu ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -2043,10 +2057,13 @@ const WeddingSeatingApp = () => {
                   <div className="relative" ref={exportMenuRef}>
                     <button
                       onClick={() => setShowExportMenu(!showExportMenu)}
-                      className="bg-[#c9b8a8] hover:bg-[#b5a598] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                      className={`bg-[#c9b8a8] hover:bg-[#b5a598] text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                        sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'px-3 py-2.5 gap-1.5'
+                      }`}
+                      title="Exportar/Importar"
                     >
                       <Download size={18} />
-                      <span>Exportar</span>
+                      {sidebarCollapsed && <span>Exportar</span>}
                       <ChevronDown size={16} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -2165,20 +2182,26 @@ const WeddingSeatingApp = () => {
                   {/* Estadísticas */}
                   <button
                     onClick={() => setShowStats(true)}
-                    className="bg-[#a8b5a1] hover:bg-[#8b9e8a] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                    className={`bg-[#a8b5a1] hover:bg-[#8b9e8a] text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                      sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'p-2.5'
+                    }`}
+                    title="Estadísticas"
                   >
                     <BarChart3 size={18} />
-                    <span>Estadísticas</span>
+                    {sidebarCollapsed && <span>Estadísticas</span>}
                   </button>
 
                   {/* Menú de Herramientas */}
                   <div className="relative" ref={toolsMenuRef}>
                     <button
                       onClick={() => setShowToolsMenu(!showToolsMenu)}
-                      className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                      className={`bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-lg shadow-sm hover:shadow-md flex items-center text-sm font-medium transition-all ${
+                        sidebarCollapsed ? 'px-4 py-2.5 gap-2' : 'px-3 py-2.5 gap-1.5'
+                      }`}
+                      title="Herramientas"
                     >
                       <Settings size={18} />
-                      <span>Herramientas</span>
+                      {sidebarCollapsed && <span>Herramientas</span>}
                       <ChevronDown size={16} className={`transition-transform ${showToolsMenu ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -3001,6 +3024,155 @@ const WeddingSeatingApp = () => {
                     </div>
                     <ChevronRight size={20} className="text-gray-400" />
                   </button>
+
+                  <div className="h-px bg-gray-200 my-4"></div>
+
+                  {/* Nuevas Herramientas */}
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowStats(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#a8b5a1] rounded-lg">
+                        <BarChart3 size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Estadísticas</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowTemplates(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-500 rounded-lg">
+                        <Layout size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Templates</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowTimeline(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-500 rounded-lg">
+                        <Clock size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Cronograma</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowChecklist(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-500 rounded-lg">
+                        <CheckSquare size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Checklist</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowBudget(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-amber-500 rounded-lg">
+                        <DollarSign size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Presupuesto</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowVersions(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-500 rounded-lg">
+                        <History size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Versiones</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowCollaboration(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-teal-500 rounded-lg">
+                        <Share2 size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Compartir</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowAdvancedDashboard(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-lg">
+                        <TrendingUp size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Dashboard Avanzado</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowSuggestions(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-lg">
+                        <Lightbulb size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Sugerencias</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <div className="h-px bg-gray-200 my-4"></div>
 
                   <button
                     onClick={() => {
