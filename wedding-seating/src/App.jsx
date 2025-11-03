@@ -9,7 +9,7 @@ import toast, { Toaster } from 'react-hot-toast';
 // Grupos predefinidos iniciales
 const DEFAULT_GROUPS = [
   { id: 'family', name: 'Familia', color: '#a8b5a1' },
-  { id: 'friends', name: 'Amigos', color: '#7fa99b' },
+  { id: 'friends', name: 'Amigos', color: '#FACCC0' },
   { id: 'work', name: 'Trabajo', color: '#8b9ca6' },
   { id: 'couple', name: 'Pareja', color: '#c9b8a8' },
   { id: 'other', name: 'Otros', color: '#b8a5b0' }
@@ -46,6 +46,7 @@ const WeddingSeatingApp = () => {
   const [tableSummary, setTableSummary] = useState(null);
   const [importFile, setImportFile] = useState(null);
   const [importStatus, setImportStatus] = useState('');
+  const isInitialMount = useRef(true);
 
   // 🔹 Cargar datos guardados
   useEffect(() => {
@@ -54,19 +55,19 @@ const WeddingSeatingApp = () => {
         const savedTables = localStorage.getItem('wedding-tables');
         const savedGuests = localStorage.getItem('wedding-guests');
         const savedGroups = localStorage.getItem('wedding-groups');
-        
+
         if (savedTables) {
           const parsedTables = JSON.parse(savedTables);
           setTables(parsedTables);
           console.log('Mesas cargadas:', parsedTables.length);
         }
-        
+
         if (savedGuests) {
           const parsedGuests = JSON.parse(savedGuests);
           setGuests(parsedGuests);
           console.log('Invitados cargados:', parsedGuests.length);
         }
-        
+
         if (savedGroups) {
           const parsedGroups = JSON.parse(savedGroups);
           setGroups(parsedGroups);
@@ -86,16 +87,25 @@ const WeddingSeatingApp = () => {
 
   // 🔹 Guardar automáticamente cuando cambian los datos
   useEffect(() => {
-    // Solo guardar si hay datos
-    if (tables.length > 0 || guests.length > 0 || groups.length > 0) {
-      try {
-        localStorage.setItem('wedding-tables', JSON.stringify(tables));
-        localStorage.setItem('wedding-guests', JSON.stringify(guests));
-        localStorage.setItem('wedding-groups', JSON.stringify(groups));
-        console.log('Datos guardados automáticamente');
-      } catch (err) {
-        console.error("Error guardando en localStorage:", err);
-      }
+    // No guardar en el primer renderizado (solo cuando se carga la página)
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    // Guardar en localStorage cada vez que cambian los datos
+    try {
+      localStorage.setItem('wedding-tables', JSON.stringify(tables));
+      localStorage.setItem('wedding-guests', JSON.stringify(guests));
+      localStorage.setItem('wedding-groups', JSON.stringify(groups));
+      console.log('💾 Guardado automático:', {
+        mesas: tables.length,
+        invitados: guests.length,
+        grupos: groups.length
+      });
+    } catch (err) {
+      console.error("❌ Error guardando en localStorage:", err);
+      toast.error('Error al guardar automáticamente');
     }
   }, [tables, guests, groups]); // Se ejecuta cuando cambian tables, guests o groups
 
@@ -104,12 +114,20 @@ const WeddingSeatingApp = () => {
     try {
       localStorage.setItem('wedding-tables', JSON.stringify(tables));
       localStorage.setItem('wedding-guests', JSON.stringify(guests));
-      
+      localStorage.setItem('wedding-groups', JSON.stringify(groups));
+
       // Verificar que se guardó correctamente
       const savedTables = localStorage.getItem('wedding-tables');
       const savedGuests = localStorage.getItem('wedding-guests');
-      
-      if (savedTables && savedGuests) {
+      const savedGroups = localStorage.getItem('wedding-groups');
+
+      console.log('Guardado manual - Datos en localStorage:', {
+        mesas: savedTables ? JSON.parse(savedTables).length : 0,
+        invitados: savedGuests ? JSON.parse(savedGuests).length : 0,
+        grupos: savedGroups ? JSON.parse(savedGroups).length : 0
+      });
+
+      if (savedTables && savedGuests && savedGroups) {
         toast.success('Progreso guardado correctamente 🥂', {
           duration: 3000,
           icon: '💾',
@@ -146,19 +164,19 @@ const WeddingSeatingApp = () => {
     setImportStatus('Procesando archivo...');
 
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        
+
         // Obtener la primera hoja
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        
+
         // Convertir a JSON
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
+
         // Extraer nombres (asumiendo que están en la primera columna)
         const names = jsonData
           .flat() // Aplanar el array
@@ -175,7 +193,8 @@ const WeddingSeatingApp = () => {
           id: Date.now() + Math.random(),
           name: name,
           tableId: null,
-          seatIndex: null
+          seatIndex: null,
+          group: 'other' // Grupo por defecto
         }));
 
         // Añadir a los invitados existentes
@@ -186,7 +205,7 @@ const WeddingSeatingApp = () => {
           duration: 3000,
         });
         setImportFile(null);
-        
+
         // Cerrar modal después de 2 segundos
         setTimeout(() => {
           setShowImportGuests(false);
@@ -216,11 +235,11 @@ const WeddingSeatingApp = () => {
     setImportStatus('Procesando archivo CSV...');
 
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const csvText = e.target.result;
-        
+
         // Procesar CSV simple (una columna con nombres)
         const names = csvText
           .split('\n') // Dividir por líneas
@@ -243,13 +262,18 @@ const WeddingSeatingApp = () => {
           id: Date.now() + Math.random(),
           name: name,
           tableId: null,
-          seatIndex: null
+          seatIndex: null,
+          group: 'other' // Grupo por defecto
         }));
 
         setGuests(prev => [...prev, ...newGuests]);
         setImportStatus(`✅ ${newGuests.length} invitados importados desde CSV`);
+        toast.success(`${newGuests.length} invitados importados desde CSV`, {
+          icon: '🎉',
+          duration: 3000,
+        });
         setImportFile(null);
-        
+
         setTimeout(() => {
           setShowImportGuests(false);
           setImportStatus('');
@@ -272,7 +296,7 @@ const WeddingSeatingApp = () => {
     }
 
     const fileName = importFile.name.toLowerCase();
-    
+
     if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
       processImportFile(); // Procesar Excel
     } else if (fileName.endsWith('.csv')) {
@@ -384,28 +408,28 @@ const WeddingSeatingApp = () => {
       // Fondo
       pdf.setFillColor(253, 246, 240);
       pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-      
+
       // Header decorativo
       pdf.setFillColor(168, 85, 247);
       pdf.rect(0, 0, pageWidth, 20, 'F');
-      
+
       // Título del resumen
       pdf.setFontSize(18);
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Resumen de Asignación de Mesas', pageWidth / 2, 13, { align: 'center' });
-      
+
       let yPosition = 30;
       const leftMargin = 15;
       const rightMargin = pageWidth - 15;
       const columnWidth = (pageWidth - 30) / 2;
       let currentColumn = 0;
-      
+
       // Información de cada mesa con diseño mejorado
       tables.forEach((table, index) => {
         const assignedGuests = guests.filter(g => g.tableId === table.id);
         const tableHeight = 15 + (assignedGuests.length * 6) + 8;
-        
+
         // Si no hay espacio para otra mesa, crear nueva página o cambiar columna
         if (yPosition + tableHeight > pageHeight - 10) {
           if (currentColumn === 0) {
@@ -419,36 +443,36 @@ const WeddingSeatingApp = () => {
             currentColumn = 0;
           }
         }
-        
+
         const xPosition = currentColumn === 0 ? leftMargin : leftMargin + columnWidth + 5;
-        
+
         // Caja de mesa
         pdf.setFillColor(255, 241, 242);
         pdf.roundedRect(xPosition, yPosition, columnWidth - 5, tableHeight, 3, 3, 'F');
-        
+
         // Borde
         pdf.setDrawColor(244, 63, 94);
         pdf.setLineWidth(0.5);
         pdf.roundedRect(xPosition, yPosition, columnWidth - 5, tableHeight, 3, 3, 'S');
-        
+
         // Encabezado de mesa
         pdf.setFontSize(12);
         pdf.setTextColor(168, 181, 161);
         pdf.setFont('helvetica', 'bold');
         pdf.text(table.name, xPosition + 3, yPosition + 6);
-        
+
         // Capacidad
         pdf.setFontSize(9);
         pdf.setTextColor(107, 114, 128);
         pdf.setFont('helvetica', 'normal');
         pdf.text(assignedGuests.length + '/' + table.capacity + ' asientos', xPosition + 3, yPosition + 11);
-        
+
         let guestY = yPosition + 17;
-        
+
         // Lista de invitados
         pdf.setFontSize(9);
         pdf.setTextColor(55, 65, 81);
-        
+
         if (assignedGuests.length === 0) {
           pdf.setTextColor(156, 163, 175);
           pdf.text('Sin invitados asignados', xPosition + 5, guestY);
@@ -461,32 +485,32 @@ const WeddingSeatingApp = () => {
             }
           });
         }
-        
+
         yPosition += tableHeight + 5;
       });
-      
+
       // Página 2: Resumen general con diseño premium
       pdf.addPage();
-      
+
       // Fondo
       pdf.setFillColor(253, 246, 240);
       pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-      
+
       // Header decorativo
       pdf.setFillColor(16, 185, 129);
       pdf.rect(0, 0, pageWidth, 20, 'F');
-      
+
       pdf.setFontSize(18);
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Resumen General de la Boda', pageWidth / 2, 13, { align: 'center' });
-      
+
       let summaryY = 35;
-      
+
       const totalGuests = guests.length;
       const assignedGuestsCount = guests.filter(g => g.tableId !== null).length;
       const unassignedGuestsCount = guests.filter(g => g.tableId === null).length;
-      
+
       // Tarjetas de estadísticas (sin iconos problemáticos)
       const stats = [
         { label: 'Total de Invitados', value: totalGuests, color: [168, 181, 161] },
@@ -494,55 +518,55 @@ const WeddingSeatingApp = () => {
         { label: 'Sin Asignar', value: unassignedGuestsCount, color: [201, 184, 168] },
         { label: 'Total de Mesas', value: tables.length, color: [139, 156, 166] }
       ];
-      
+
       const cardWidth = (pageWidth - 40) / 2;
       const cardHeight = 25;
       let cardX = 15;
       let cardY = summaryY;
-      
+
       stats.forEach((stat, idx) => {
         if (idx % 2 === 0 && idx > 0) {
           cardY += cardHeight + 5;
           cardX = 15;
         }
-        
+
         // Fondo de tarjeta
         pdf.setFillColor(stat.color[0], stat.color[1], stat.color[2], 0.1);
         pdf.roundedRect(cardX, cardY, cardWidth, cardHeight, 3, 3, 'F');
-        
+
         // Borde
         pdf.setDrawColor(stat.color[0], stat.color[1], stat.color[2]);
         pdf.setLineWidth(0.5);
         pdf.roundedRect(cardX, cardY, cardWidth, cardHeight, 3, 3, 'S');
-        
+
         // Indicador visual en lugar de icono
         pdf.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
         pdf.circle(cardX + 8, cardY + 12, 3, 'F');
-        
+
         // Label
         pdf.setFontSize(10);
         pdf.setTextColor(107, 114, 128);
         pdf.text(stat.label, cardX + 15, cardY + 10);
-        
+
         // Value
         pdf.setFontSize(18);
         pdf.setTextColor(stat.color[0], stat.color[1], stat.color[2]);
         pdf.setFont('helvetica', 'bold');
         pdf.text(stat.value.toString(), cardX + 15, cardY + 20);
         pdf.setFont('helvetica', 'normal');
-        
+
         cardX += cardWidth + 10;
       });
-      
+
       summaryY = cardY + cardHeight + 20;
-      
+
       // Sección de capacidad por mesa
       pdf.setFontSize(14);
       pdf.setTextColor(55, 65, 81);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Capacidad por Mesa', 15, summaryY);
       summaryY += 10;
-      
+
       // Tabla de mesas
       tables.forEach((table, idx) => {
         if (summaryY > pageHeight - 15) {
@@ -551,45 +575,45 @@ const WeddingSeatingApp = () => {
           pdf.rect(0, 0, pageWidth, pageHeight, 'F');
           summaryY = 20;
         }
-        
+
         const assignedCount = guests.filter(g => g.tableId === table.id).length;
         const percentage = ((assignedCount/table.capacity)*100).toFixed(0);
-        
+
         // Barra de progreso más compacta
         const barWidth = pageWidth - 120; // Reducido para dar más espacio al texto
         const barHeight = 6; // Más delgada
-        
+
         pdf.setFontSize(9);
         pdf.setTextColor(55, 65, 81);
         pdf.text(table.name, 15, summaryY);
-        
+
         // Fondo de barra
         pdf.setFillColor(229, 231, 235);
         pdf.roundedRect(70, summaryY - 4, barWidth, barHeight, 2, 2, 'F');
-        
+
         // Progreso
         const fillWidth = (barWidth * assignedCount) / table.capacity;
         const color = percentage < 50 ? [201, 184, 168] : percentage < 80 ? [168, 181, 161] : [127, 169, 155];
         pdf.setFillColor(color[0], color[1], color[2]);
         pdf.roundedRect(70, summaryY - 4, fillWidth, barHeight, 2, 2, 'F');
-        
+
         // Texto con más espacio
         pdf.setFontSize(8);
         pdf.setTextColor(107, 114, 139);
         pdf.text(assignedCount + '/' + table.capacity + ' (' + percentage + '%)', 70 + barWidth + 3, summaryY);
-        
+
         summaryY += 10; // Espaciado reducido
       });
-      
+
       // Footer
       pdf.setFontSize(8);
       pdf.setTextColor(156, 163, 175);
       pdf.text(`Generado el ${new Date().toLocaleDateString('es-ES')} - Planificador de Boda`, pageWidth / 2, pageHeight - 5, { align: 'center' });
 
       pdf.save('planificacion-boda-completa.pdf');
-      
+
       toast.success('PDF generado correctamente', { id: 'pdf-export', icon: '🎉' });
-      
+
     } catch (error) {
       console.error('Error al exportar PDF:', error);
       alert('Error al exportar el PDF. Por favor, intenta nuevamente.');
@@ -767,12 +791,12 @@ const WeddingSeatingApp = () => {
 
     // Obtener invitados asignados a esta mesa
     const assignedGuests = guests.filter(g => g.tableId === table.id);
-    
+
     // Calcular tamaño dinámico basado en la cantidad de invitados
     const getTableSize = () => {
       const baseSize = 140; // Tamaño base
       const guestCount = assignedGuests.length;
-      
+
       if (guestCount <= 4) return baseSize;
       if (guestCount <= 6) return baseSize + 20;
       if (guestCount <= 8) return baseSize + 40;
@@ -826,7 +850,7 @@ const WeddingSeatingApp = () => {
               // SIEMPRE mostrar todos los nombres completos
               <div className="w-full h-full flex flex-col items-center justify-center space-y-1 p-1">
                 {assignedGuests.map(guest => (
-                  <div 
+                  <div
                     key={guest.id}
                     className={`${fontSize} text-gray-800 font-medium text-center leading-tight w-full px-1 truncate table-guest-name`}
                     title={guest.name}
@@ -899,7 +923,7 @@ const WeddingSeatingApp = () => {
             } else {
               const perSide = Math.ceil(table.capacity / 2);
               const seatSpacing = rectWidth / Math.max(perSide - 1, 1);
-              
+
               if (index < perSide) {
                 seatX = (index * seatSpacing) - 20;
                 seatY = -35;
@@ -963,7 +987,7 @@ const WeddingSeatingApp = () => {
     <div className="flex h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 text-gray-800 relative overflow-hidden">
       {/* Toaster para notificaciones */}
       <Toaster position="top-right" />
-      
+
       {/* Decoración de fondo sutil */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-10 left-10 w-96 h-96 bg-[#a8b5a1]/10 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
@@ -984,11 +1008,11 @@ const WeddingSeatingApp = () => {
                   <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#8b9ca6]"></div>
                 </div>
                 <div className="border-l border-gray-300 pl-2 md:pl-4">
-                  <h1 className="text-base md:text-xl font-medium text-gray-900 tracking-tight">Planificador de Boda</h1>
-                  <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden sm:block">Organización de Mesas</p>
+                  <h1 className="text-base md:text-xl font-medium text-gray-900 tracking-tight">Wedding Seating Planner</h1>
+                  <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden sm:block">By Jose Luis Cáceres</p>
                 </div>
               </div>
-              
+
               {/* Desktop: Stats */}
               <div className="hidden lg:flex items-center gap-3 text-sm">
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
@@ -1002,7 +1026,7 @@ const WeddingSeatingApp = () => {
                   <span className="text-gray-500">invitados</span>
                 </div>
               </div>
-              
+
               {/* Mobile: Menu buttons */}
               <div className="flex items-center gap-2 lg:hidden">
                 <button
@@ -1023,7 +1047,7 @@ const WeddingSeatingApp = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Toolbar minimalista - Solo desktop */}
         <div className="absolute top-16 md:top-20 left-0 right-0 z-10 px-4 md:px-8 py-2 md:py-3 animate-fadeIn hidden lg:block">
           <div className="max-w-7xl mx-auto">
@@ -1184,7 +1208,7 @@ const WeddingSeatingApp = () => {
                 title={guest.name}
               >
                 <div className="flex items-center gap-3">
-                  <div 
+                  <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm"
                     style={{ backgroundColor: groupColor }}
                   >
@@ -1207,7 +1231,7 @@ const WeddingSeatingApp = () => {
       {/* Modal añadir mesa */}
       {showAddTable && (
         <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
@@ -1261,7 +1285,7 @@ const WeddingSeatingApp = () => {
       {/* Modal editar mesa */}
       {editingTable && (
         <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-96 border-2 border-blue-200"
@@ -1332,7 +1356,7 @@ const WeddingSeatingApp = () => {
       {/* Modal añadir invitados */}
       {showAddGuests && (
         <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-2xl p-8 shadow-2xl w-[480px] border border-gray-200"
@@ -1341,7 +1365,7 @@ const WeddingSeatingApp = () => {
               <UserPlus className="text-[#7fa99b]" size={28} />
               Añadir Invitados
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Grupo</label>
@@ -1361,7 +1385,7 @@ const WeddingSeatingApp = () => {
                   <span className="text-xs text-gray-500">Color del grupo seleccionado</span>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nombres (uno por línea)</label>
                 <textarea
@@ -1372,7 +1396,7 @@ const WeddingSeatingApp = () => {
                 />
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowAddGuests(false)} className="flex-1 px-5 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 font-medium transition-colors text-gray-700">Cancelar</button>
               <button onClick={addGuests} className="flex-1 px-5 py-3 rounded-lg bg-[#7fa99b] hover:bg-[#6b8f82] text-white font-medium shadow-sm transition-all">Añadir</button>
@@ -1384,8 +1408,8 @@ const WeddingSeatingApp = () => {
       {isDragging && draggedGuest && (
         <motion.div
           className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-2xl z-50 fixed top-0 left-0 pointer-events-none font-semibold text-sm"
-          style={{ 
-            x: dragPos.x - 24, 
+          style={{
+            x: dragPos.x - 24,
             y: dragPos.y - 24,
             backgroundColor: getGroupColor(draggedGuest.group || 'other')
           }}
@@ -1399,7 +1423,7 @@ const WeddingSeatingApp = () => {
       )}
       {tableSummary && (
         <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-[500px] max-h-[80vh] overflow-y-auto border-2 border-purple-200"
@@ -1482,7 +1506,7 @@ const WeddingSeatingApp = () => {
               className="fixed inset-0 bg-black/50 z-50 lg:hidden"
               onClick={() => setShowMobileMenu(false)}
             />
-            
+
             {/* Menú */}
             <motion.div
               initial={{ x: '100%' }}
@@ -1663,7 +1687,7 @@ const WeddingSeatingApp = () => {
               className="fixed inset-0 bg-black/50 z-50 lg:hidden"
               onClick={() => setShowMobileSidebar(false)}
             />
-            
+
             {/* Sidebar */}
             <motion.div
               initial={{ x: '-100%' }}
@@ -1682,7 +1706,7 @@ const WeddingSeatingApp = () => {
                     <X size={20} className="text-gray-500" />
                   </button>
                 </div>
-                
+
                 {/* Búsqueda */}
                 <div className="relative">
                   <Search className="absolute left-3 top-3 text-gray-400" size={18} />
@@ -1703,7 +1727,7 @@ const WeddingSeatingApp = () => {
                   )}
                 </div>
               </div>
-              
+
               {/* Lista de invitados */}
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {unassignedGuests.filter(g =>
@@ -1723,7 +1747,7 @@ const WeddingSeatingApp = () => {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-shrink-0"
                           style={{ backgroundColor: groupColor }}
                         >
@@ -1749,7 +1773,7 @@ const WeddingSeatingApp = () => {
       {/* Modal de gestión de grupos */}
       {showManageGroups && (
         <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-2xl p-8 shadow-2xl w-[600px] max-h-[80vh] overflow-hidden flex flex-col border border-gray-200"
@@ -1795,7 +1819,7 @@ const WeddingSeatingApp = () => {
                         </option>
                       ))}
                     </select>
-                    <div 
+                    <div
                       className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-sm pointer-events-none"
                       style={{ backgroundColor: newGroupColor }}
                     ></div>
@@ -1825,7 +1849,7 @@ const WeddingSeatingApp = () => {
                       className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group"
                     >
                       <div className="flex items-center gap-3 flex-1">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded-full shadow-sm"
                           style={{ backgroundColor: group.color }}
                         ></div>
@@ -1864,7 +1888,7 @@ const WeddingSeatingApp = () => {
       {/* Modal importar invitados desde Excel/CSV */}
         {showImportGuests && (
           <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-[500px] border-2 border-purple-200"
@@ -1873,12 +1897,12 @@ const WeddingSeatingApp = () => {
                 <FileUp className="bg-purple-100 rounded-full p-1" size={28} />
                 Importar Invitados
               </h3>
-              
+
               <div className="mb-6">
                 <p className="text-sm text-gray-600 mb-4">
                   Selecciona un archivo Excel (.xlsx, .xls) o CSV con una columna de nombres.
                 </p>
-                
+
                 <div className="border-2 border-dashed border-purple-300 rounded-2xl p-6 text-center bg-purple-50/50 hover:bg-purple-50 transition-colors">
                   <input
                     type="file"
@@ -1904,8 +1928,8 @@ const WeddingSeatingApp = () => {
 
               {importStatus && (
                 <div className={`p-3 rounded-lg mb-4 text-sm ${
-                  importStatus.includes('✅') 
-                    ? 'bg-green-100 text-green-800 border border-green-200' 
+                  importStatus.includes('✅')
+                    ? 'bg-green-100 text-green-800 border border-green-200'
                     : importStatus.includes('Error') || importStatus.includes('No se encontraron')
                     ? 'bg-red-100 text-red-800 border border-red-200'
                     : 'bg-blue-100 text-blue-800 border border-blue-200'
@@ -1915,7 +1939,7 @@ const WeddingSeatingApp = () => {
               )}
 
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => {
                     setShowImportGuests(false);
                     setImportFile(null);
@@ -1925,12 +1949,12 @@ const WeddingSeatingApp = () => {
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={handleImport}
                   disabled={!importFile}
                   className={`flex-1 px-5 py-3 rounded-xl text-white font-medium shadow-lg transition-all ${
-                    importFile 
-                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700' 
+                    importFile
+                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
                       : 'bg-gray-300 cursor-not-allowed'
                   }`}
                 >
