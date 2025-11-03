@@ -52,6 +52,8 @@ const WeddingSeatingApp = () => {
   const [isDraggingTable, setIsDraggingTable] = useState(false);
   const touchStartPos = useRef({ x: 0, y: 0 });
   const [longPressActive, setLongPressActive] = useState(false);
+  const [hoveredSeat, setHoveredSeat] = useState(null);
+  const [editingGuest, setEditingGuest] = useState(null);
 
   // 🔹 Cargar datos guardados
   useEffect(() => {
@@ -860,6 +862,43 @@ const WeddingSeatingApp = () => {
     return group ? group.color : '#b8a5b0';
   };
 
+  // Editar invitado
+  const updateGuest = (guestId, updates) => {
+    setGuests(prevGuests => 
+      prevGuests.map(g => g.id === guestId ? { ...g, ...updates } : g)
+    );
+  };
+
+  // Guardar edición de invitado
+  const saveEditedGuest = () => {
+    if (!editingGuest) return;
+    
+    if (!editingGuest.name.trim()) {
+      toast.error('El nombre no puede estar vacío');
+      return;
+    }
+    
+    updateGuest(editingGuest.id, {
+      name: editingGuest.name.trim(),
+      group: editingGuest.group
+    });
+    
+    setEditingGuest(null);
+    toast.success('Invitado actualizado correctamente', {
+      icon: '✅',
+    });
+  };
+
+  // Eliminar invitado
+  const deleteGuest = (guestId) => {
+    if (confirm('¿Estás seguro de que quieres eliminar este invitado?')) {
+      setGuests(prevGuests => prevGuests.filter(g => g.id !== guestId));
+      toast.success('Invitado eliminado', {
+        icon: '🗑️',
+      });
+    }
+  };
+
   // Añadir nuevo grupo
   const addGroup = () => {
     if (!newGroupName.trim()) {
@@ -1101,6 +1140,7 @@ const WeddingSeatingApp = () => {
           {table.seats.map((seat, index) => {
             const angle = (index / table.capacity) * 2 * Math.PI - Math.PI / 2;
             const guest = guests.find(g => g.tableId === table.id && g.seatIndex === index);
+            const guestGroupColor = guest ? getGroupColor(guest.group || 'other') : null;
             let seatX, seatY;
 
             if (isRound) {
@@ -1128,6 +1168,17 @@ const WeddingSeatingApp = () => {
                   if (!draggedGuest) return;
                   assignGuestToSeat(draggedGuest.id, table.id, index);
                 }}
+                onMouseEnter={(e) => {
+                  if (guest) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setHoveredSeat({
+                      guest,
+                      x: rect.left + rect.width / 2,
+                      y: rect.top - 10
+                    });
+                  }
+                }}
+                onMouseLeave={() => setHoveredSeat(null)}
                 draggable={!!guest}
                 onDragStart={(e) => guest && handleDragStart(e, guest)}
                 onTouchStart={(e) => {
@@ -1160,16 +1211,21 @@ const WeddingSeatingApp = () => {
                     longPressTimer.current = null;
                   }
                 }}
-                className={`seat absolute w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs cursor-pointer group shadow-md active:scale-90 touch-manipulation
+                className={`seat absolute w-10 h-10 rounded-full border-3 flex items-center justify-center text-xs cursor-pointer group shadow-md active:scale-90 touch-manipulation
                   ${guest
-                    ? 'bg-gradient-to-br from-violet-400 to-indigo-500 text-white border-violet-300 hover:from-violet-500 hover:to-indigo-600 hover:shadow-lg hover:scale-110'
+                    ? 'text-white hover:shadow-lg hover:scale-110'
                     : 'bg-white border-violet-300 hover:border-violet-500 hover:bg-violet-50 hover:scale-105'
                   }`}
                 style={{ 
                   left: seatX, 
                   top: seatY,
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  WebkitTapHighlightColor: 'transparent'
+                  WebkitTapHighlightColor: 'transparent',
+                  ...(guest && guestGroupColor && {
+                    backgroundColor: guestGroupColor,
+                    borderColor: guestGroupColor,
+                    boxShadow: `0 4px 12px ${guestGroupColor}40`
+                  })
                 }}
                 data-table-id={table.id}
                 data-seat-index={index}
@@ -1188,13 +1244,6 @@ const WeddingSeatingApp = () => {
                   >
                     ×
                   </button>
-                )}
-
-                {/* Tooltip */}
-                {guest && (
-                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    {guest.name}
-                  </span>
                 )}
               </div>
             );
@@ -1435,12 +1484,34 @@ const WeddingSeatingApp = () => {
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm"
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-shrink-0"
                     style={{ backgroundColor: groupColor }}
                   >
                     {guest.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="font-medium text-gray-800 text-sm group-hover:text-gray-900 transition-colors">{guest.name}</span>
+                  <span className="font-medium text-gray-800 text-sm group-hover:text-gray-900 transition-colors flex-1">{guest.name}</span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingGuest({ ...guest });
+                      }}
+                      className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors"
+                      title="Editar invitado"
+                    >
+                      <Edit3 size={14} className="text-blue-600" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteGuest(guest.id);
+                      }}
+                      className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
+                      title="Eliminar invitado"
+                    >
+                      <Trash2 size={14} className="text-red-600" />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             );
@@ -1503,6 +1574,72 @@ const WeddingSeatingApp = () => {
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowAddTable(false)} className="flex-1 px-5 py-3 rounded-xl bg-gray-200 hover:bg-gray-300 font-medium transition-colors">Cancelar</button>
               <button onClick={addTable} className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-medium shadow-lg transition-all">Añadir</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal editar invitado */}
+      {editingGuest && (
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl p-8 shadow-2xl w-[480px] border border-gray-200"
+          >
+            <h3 className="text-2xl font-semibold mb-6 text-gray-900 flex items-center gap-2">
+              <Edit3 className="text-[#7fa99b]" size={28} />
+              Editar Invitado
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo</label>
+                <input
+                  type="text"
+                  placeholder="Nombre del invitado"
+                  value={editingGuest.name}
+                  onChange={(e) => setEditingGuest({ ...editingGuest, name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:border-[#a8b5a1] focus:ring-1 focus:ring-[#a8b5a1] transition-colors"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Grupo</label>
+                <select
+                  value={editingGuest.group}
+                  onChange={(e) => setEditingGuest({ ...editingGuest, group: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:border-[#a8b5a1] focus:ring-1 focus:ring-[#a8b5a1] transition-colors"
+                >
+                  {groups.map(group => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {editingGuest.tableId !== null && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-700 flex items-center gap-2">
+                    <span>ℹ️</span>
+                    <span>Este invitado está asignado a una mesa</span>
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button 
+                onClick={() => setEditingGuest(null)} 
+                className="flex-1 px-5 py-3 rounded-lg bg-gray-200 hover:bg-gray-300 font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={saveEditedGuest} 
+                className="flex-1 px-5 py-3 rounded-lg bg-[#7fa99b] hover:bg-[#6b8f82] text-white font-medium shadow-sm transition-all"
+              >
+                Guardar Cambios
+              </button>
             </div>
           </motion.div>
         </div>
@@ -2029,6 +2166,22 @@ const WeddingSeatingApp = () => {
           </>
         )}
       </AnimatePresence>
+
+      {/* Tooltip global para invitados */}
+      {hoveredSeat && (
+        <div
+          className="fixed pointer-events-none z-[9999]"
+          style={{
+            left: hoveredSeat.x,
+            top: hoveredSeat.y,
+            transform: 'translate(-50%, -100%)'
+          }}
+        >
+          <div className="bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg">
+            {hoveredSeat.guest.name}
+          </div>
+        </div>
+      )}
 
       {/* Indicador visual de drag táctil - Círculo/Pelota */}
       {isDragging && draggedGuest && (
