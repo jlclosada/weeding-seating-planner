@@ -48,6 +48,10 @@ const WeddingSeatingApp = () => {
   const [importStatus, setImportStatus] = useState('');
   const isInitialMount = useRef(true);
   const dragOverTarget = useRef(null);
+  const longPressTimer = useRef(null);
+  const [isDraggingTable, setIsDraggingTable] = useState(false);
+  const touchStartPos = useRef({ x: 0, y: 0 });
+  const [longPressActive, setLongPressActive] = useState(false);
 
   // 🔹 Cargar datos guardados
   useEffect(() => {
@@ -469,28 +473,68 @@ const WeddingSeatingApp = () => {
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Manejo de drag táctil para mesas
+  // Manejo de drag táctil para mesas con long-press
   const handleTouchStartTable = (e, tableId) => {
-    const table = tables.find(t => t.id === tableId);
     const touch = e.touches[0];
-    const offsetX = touch.clientX - table.x;
-    const offsetY = touch.clientY - table.y;
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    
+    setLongPressActive(true);
+    
+    // Long press timer (500ms)
+    longPressTimer.current = setTimeout(() => {
+      setLongPressActive(false);
+      setIsDraggingTable(true);
+      
+      // Haptic feedback en dispositivos compatibles
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      const table = tables.find(t => t.id === tableId);
+      const offsetX = touch.clientX - table.x;
+      const offsetY = touch.clientY - table.y;
 
-    const handleTouchMove = (ev) => {
-      ev.preventDefault();
+      const handleTouchMove = (ev) => {
+        ev.preventDefault();
+        const touch = ev.touches[0];
+        const newX = touch.clientX - offsetX + canvasRef.current.scrollLeft;
+        const newY = touch.clientY - offsetY + canvasRef.current.scrollTop;
+        setTables(prev => prev.map(t => t.id === tableId ? { ...t, x: newX, y: newY } : t));
+      };
+
+      const handleTouchEnd = () => {
+        setIsDraggingTable(false);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }, 400);
+
+    // Limpiar timer si se mueve o levanta antes
+    const clearTimer = () => {
+      setLongPressActive(false);
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
+
+    const handleMove = (ev) => {
       const touch = ev.touches[0];
-      const newX = touch.clientX - offsetX + canvasRef.current.scrollLeft;
-      const newY = touch.clientY - offsetY + canvasRef.current.scrollTop;
-      setTables(prev => prev.map(t => t.id === tableId ? { ...t, x: newX, y: newY } : t));
+      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+      
+      // Si se mueve más de 10px, cancelar long press
+      if (deltaX > 10 || deltaY > 10) {
+        clearTimer();
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('touchend', clearTimer);
+      }
     };
 
-    const handleTouchEnd = () => {
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchmove', handleMove, { passive: true });
+    document.addEventListener('touchend', clearTimer, { once: true });
   };
 
   const exportPDF = async () => {
@@ -926,8 +970,12 @@ const WeddingSeatingApp = () => {
 
     return (
       <div
-        className="absolute select-none transition-all duration-300 cursor-move"
-        style={{ left: table.x, top: table.y }}
+        className="absolute select-none cursor-move"
+        style={{ 
+          left: table.x, 
+          top: table.y,
+          transition: isDraggingTable ? 'none' : 'all 0.3s ease'
+        }}
         onMouseDown={(e) => handleMouseDownTable(e, table.id)}
         onTouchStart={(e) => handleTouchStartTable(e, table.id)}
         onContextMenu={handleContextMenu}
@@ -936,13 +984,15 @@ const WeddingSeatingApp = () => {
         <div
           className={`relative ${isRound ? 'rounded-full' : 'rounded-2xl'}
                       bg-gradient-to-br from-white to-violet-50 shadow-xl border-3 border-violet-300
-                      hover:scale-105 hover:shadow-violet-300/40 transition-all duration-300 cursor-pointer
-                      flex items-center justify-center table-container
-                      backdrop-blur-sm bg-opacity-95`}
+                      hover:scale-105 hover:shadow-violet-300/40 flex items-center justify-center table-container
+                      backdrop-blur-sm bg-opacity-95 active:scale-95 touch-manipulation
+                      ${longPressActive ? 'animate-pulse scale-105' : ''}`}
           style={{
             width: isRound ? tableSize : rectWidth,
             height: isRound ? tableSize : rectHeight,
             minHeight: isRound ? tableSize : rectHeight,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            WebkitTapHighlightColor: 'transparent'
           }}
         >
           {/* Área central para nombres de invitados - SIEMPRE muestra todos */}
@@ -1050,12 +1100,39 @@ const WeddingSeatingApp = () => {
                 }}
                 draggable={!!guest}
                 onDragStart={(e) => guest && handleDragStart(e, guest)}
-                className={`seat absolute w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs cursor-pointer transition-all duration-200 group shadow-md
+                onTouchStart={(e) => {
+                  if (!guest) return;
+                  e.stopPropagation();
+                  setLongPressActive(true);
+                  
+                  longPressTimer.current = setTimeout(() => {
+                    setLongPressActive(false);
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    setDraggedGuest(guest);
+                    setIsDragging(true);
+                    const touch = e.touches[0];
+                    setDragPos({ x: touch.clientX, y: touch.clientY });
+                    assignGuestToSeat(guest.id, null, null);
+                  }, 500);
+                }}
+                onTouchEnd={() => {
+                  setLongPressActive(false);
+                  if (longPressTimer.current) {
+                    clearTimeout(longPressTimer.current);
+                    longPressTimer.current = null;
+                  }
+                }}
+                className={`seat absolute w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs cursor-pointer group shadow-md active:scale-90 touch-manipulation
                   ${guest
                     ? 'bg-gradient-to-br from-violet-400 to-indigo-500 text-white border-violet-300 hover:from-violet-500 hover:to-indigo-600 hover:shadow-lg hover:scale-110'
                     : 'bg-white border-violet-300 hover:border-violet-500 hover:bg-violet-50 hover:scale-105'
                   }`}
-                style={{ left: seatX, top: seatY }}
+                style={{ 
+                  left: seatX, 
+                  top: seatY,
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
                 data-table-id={table.id}
                 data-seat-index={index}
               >
@@ -1216,8 +1293,12 @@ const WeddingSeatingApp = () => {
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40 overflow-auto"
-          style={{ minWidth: '2000px', minHeight: '1500px' }}
+          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40 overflow-auto touch-pan-x touch-pan-y"
+          style={{ 
+            minWidth: '2000px', 
+            minHeight: '1500px',
+            WebkitOverflowScrolling: 'touch'
+          }}
           onDragOver={handleDragOver}
           onDrop={(e) => {
             const tableId = parseInt(e.dataTransfer.getData('tableId'));
@@ -1852,13 +1933,26 @@ const WeddingSeatingApp = () => {
                         e.dataTransfer.effectAllowed = 'move';
                       }}
                       onTouchStart={(e) => {
-                        setDraggedGuest(guest);
-                        setIsDragging(true);
-                        const touch = e.touches[0];
-                        setDragPos({ x: touch.clientX, y: touch.clientY });
-                        setShowMobileSidebar(false); // Cerrar sidebar al arrastrar
+                        e.stopPropagation();
+                        setLongPressActive(true);
+                        longPressTimer.current = setTimeout(() => {
+                          setLongPressActive(false);
+                          if (navigator.vibrate) navigator.vibrate(50);
+                          setDraggedGuest(guest);
+                          setIsDragging(true);
+                          const touch = e.touches[0];
+                          setDragPos({ x: touch.clientX, y: touch.clientY });
+                        }, 500);
                       }}
-                      className="bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-move active:opacity-50"
+                      onTouchEnd={() => {
+                        setLongPressActive(false);
+                        if (longPressTimer.current) {
+                          clearTimeout(longPressTimer.current);
+                          longPressTimer.current = null;
+                        }
+                      }}
+                      className="bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-move active:scale-95 active:opacity-70 transition-all duration-150 touch-manipulation"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                       style={{
                         borderLeftWidth: '3px',
                         borderLeftColor: groupColor
