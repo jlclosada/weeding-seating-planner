@@ -26,7 +26,7 @@ const AVAILABLE_COLORS = [
 const EVENT_TEMPLATES = [
   {
     id: 'wedding',
-    name: 'Boda Clásica',
+    name: 'Boda',
     icon: '💒',
     description: 'Configuración tradicional para bodas',
     tables: [
@@ -61,10 +61,10 @@ const EVENT_TEMPLATES = [
     ]
   },
   {
-    id: 'quinceanera',
-    name: 'Quinceañera',
+    id: 'birthday',
+    name: 'Cumpleñaos',
     icon: '👑',
-    description: 'Perfecta para celebraciones de 15 años',
+    description: 'Perfecta para celebraciones',
     tables: [
       { name: 'Mesa de Honor', type: 'rectangular', capacity: 10 },
       { name: 'Familia', type: 'round', capacity: 10 },
@@ -2307,52 +2307,83 @@ const WeddingSeatingApp = () => {
           </div>
         </div>
 
-        {/* Controles flotantes de zoom y sugerencias */}
-        <div className="fixed bottom-8 right-8 z-30 flex flex-col gap-2">
-          {/* Sugerencias */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowSuggestions(true)}
-            className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white p-4 rounded-full shadow-2xl flex items-center gap-2 font-medium transition-all group"
-            title="Ver sugerencias"
-          >
-            <Lightbulb size={24} className="group-hover:rotate-12 transition-transform" />
+        {/* Controles flotantes de zoom y sugerencias - Solo desktop */}
+        <div className="hidden lg:flex fixed bottom-20 right-6 z-30 flex-col gap-3">
+          {/* Sugerencias con contador estilo iPhone */}
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowSuggestions(true)}
+              className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white p-3 rounded-xl shadow-lg flex items-center justify-center font-medium transition-all group"
+              title="Ver sugerencias"
+            >
+              <Lightbulb size={20} className="group-hover:rotate-12 transition-transform" />
+            </motion.button>
             {generateSuggestions().length > 0 && (
-              <span className="bg-white text-orange-600 text-xs font-bold px-2 py-0.5 rounded-full">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-5 px-1.5 rounded-full shadow-lg flex items-center justify-center border-2 border-white"
+              >
                 {generateSuggestions().length}
-              </span>
+              </motion.div>
             )}
-          </motion.button>
+          </div>
 
-          {/* Controles de zoom */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-2 flex flex-col gap-1">
-            <button
+          {/* Controles de zoom compactos */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2 flex flex-col gap-1.5 overflow-hidden"
+          >
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: 'rgb(243, 244, 246)' }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setZoomLevel(Math.min(zoomLevel + 10, 150))}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all group relative"
               title="Acercar"
             >
-              <ZoomIn size={20} className="text-gray-700" />
-            </button>
-            <div className="text-center text-xs font-medium text-gray-600 py-1">
-              {zoomLevel}%
+              <ZoomIn size={18} className="text-gray-700 group-hover:text-[#a8b5a1] transition-colors" />
+            </motion.button>
+            
+            <div className="relative py-1">
+              <div className="text-center text-xs font-bold text-gray-900 mb-0.5">
+                {zoomLevel}%
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-1 overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-[#a8b5a1] to-[#7fa99b] rounded-full"
+                  initial={{ width: '50%' }}
+                  animate={{ width: `${((zoomLevel - 50) / 100) * 100}%` }}
+                  transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                />
+              </div>
             </div>
-            <button
+            
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: 'rgb(243, 244, 246)' }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setZoomLevel(Math.max(zoomLevel - 10, 50))}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all group relative"
               title="Alejar"
             >
-              <ZoomOut size={20} className="text-gray-700" />
-            </button>
-            <div className="h-px bg-gray-200 my-1"></div>
-            <button
+              <ZoomOut size={18} className="text-gray-700 group-hover:text-[#c9b8a8] transition-colors" />
+            </motion.button>
+            
+            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent my-0.5"></div>
+            
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: 'rgb(243, 244, 246)' }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setZoomLevel(100)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all group relative"
               title="Restablecer"
             >
-              <Maximize2 size={18} className="text-gray-700" />
-            </button>
-          </div>
+              <Maximize2 size={16} className="text-gray-700 group-hover:text-[#8b9ca6] transition-colors" />
+            </motion.button>
+          </motion.div>
         </div>
 
         {/* Canvas */}
@@ -2365,7 +2396,8 @@ const WeddingSeatingApp = () => {
             WebkitOverflowScrolling: 'touch',
             touchAction: isDraggingTable || isDragging ? 'none' : 'pan-x pan-y',
             transform: `scale(${zoomLevel / 100})`,
-            transformOrigin: 'top left'
+            transformOrigin: 'top left',
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
           onDragOver={handleDragOver}
           onDrop={(e) => {
@@ -3167,10 +3199,55 @@ const WeddingSeatingApp = () => {
                       <div className="p-2 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-lg">
                         <Lightbulb size={20} className="text-white" />
                       </div>
-                      <span className="font-medium text-gray-900">Sugerencias</span>
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-900">Sugerencias</span>
+                        {generateSuggestions().length > 0 && (
+                          <span className="ml-2 text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">
+                            {generateSuggestions().length}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <ChevronRight size={20} className="text-gray-400" />
                   </button>
+
+                  {/* Controles de Zoom en móvil */}
+                  <div className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-medium text-gray-900 text-sm">Control de Zoom</span>
+                      <span className="text-sm font-bold text-gray-700">{zoomLevel}%</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setZoomLevel(Math.max(zoomLevel - 10, 50))}
+                        className="flex-1 p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-300 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <ZoomOut size={18} className="text-gray-700" />
+                        <span className="text-sm font-medium">-</span>
+                      </button>
+                      <button
+                        onClick={() => setZoomLevel(100)}
+                        className="p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-300 transition-colors"
+                        title="Restablecer"
+                      >
+                        <Maximize2 size={18} className="text-gray-700" />
+                      </button>
+                      <button
+                        onClick={() => setZoomLevel(Math.min(zoomLevel + 10, 150))}
+                        className="flex-1 p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-300 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <ZoomIn size={18} className="text-gray-700" />
+                        <span className="text-sm font-medium">+</span>
+                      </button>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-3">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-[#a8b5a1] to-[#7fa99b] rounded-full"
+                        animate={{ width: `${((zoomLevel - 50) / 100) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                      />
+                    </div>
+                  </div>
 
                   <div className="h-px bg-gray-200 my-4"></div>
 
@@ -4008,32 +4085,118 @@ const WeddingSeatingApp = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3">
-              {calculateBudgetNeeds().map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-gray-50 rounded-xl p-4 border border-gray-200"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <ShoppingCart className="text-amber-500" size={20} />
+              {budgetItems.map((item, index) => {
+                const calculated = calculateBudgetNeeds().find(i => i.id === item.id);
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-amber-300 transition-colors group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3 flex-1">
+                        <ShoppingCart className="text-amber-500" size={20} />
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={item.item}
+                            onChange={(e) => {
+                              setBudgetItems(budgetItems.map(b =>
+                                b.id === item.id ? { ...b, item: e.target.value } : b
+                              ));
+                            }}
+                            className="font-semibold text-gray-900 bg-transparent border-b border-transparent hover:border-amber-300 focus:border-amber-500 focus:outline-none w-full"
+                          />
+                          <input
+                            type="text"
+                            value={item.category}
+                            onChange={(e) => {
+                              setBudgetItems(budgetItems.map(b =>
+                                b.id === item.id ? { ...b, category: e.target.value } : b
+                              ));
+                            }}
+                            className="text-xs text-gray-500 bg-transparent border-b border-transparent hover:border-amber-300 focus:border-amber-500 focus:outline-none w-full mt-1"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setBudgetItems(budgetItems.filter(b => b.id !== item.id));
+                          toast.success('Elemento eliminado del presupuesto');
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-100 rounded-lg transition-all"
+                        title="Eliminar elemento"
+                      >
+                        <Trash2 size={16} className="text-red-600" />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-2">
                       <div>
-                        <h4 className="font-semibold text-gray-900">{item.item}</h4>
-                        <p className="text-xs text-gray-500">{item.category}</p>
+                        <label className="text-xs text-gray-600 mb-1 block">Precio Unitario</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.unitPrice}
+                            onChange={(e) => {
+                              setBudgetItems(budgetItems.map(b =>
+                                b.id === item.id ? { ...b, unitPrice: parseFloat(e.target.value) || 0 } : b
+                              ));
+                            }}
+                            className="w-full pl-7 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 mb-1 block">Cantidad</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={calculated?.quantity || 0}
+                          className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm cursor-not-allowed"
+                          disabled
+                          title="La cantidad se calcula automáticamente"
+                        />
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg text-gray-900">${item.total.toLocaleString()}</p>
-                      <p className="text-xs text-gray-500">{item.quantity} × ${item.unitPrice}</p>
+                    
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                      <div className="bg-amber-100 rounded-lg px-3 py-1 text-xs text-amber-800">
+                        Total: ${(calculated?.total || 0).toLocaleString()}
+                      </div>
+                      <p className="text-xs text-gray-500">{calculated?.quantity || 0} × ${item.unitPrice}</p>
                     </div>
-                  </div>
-                  <div className="bg-amber-100 rounded-lg px-3 py-1 text-xs text-amber-800 inline-block">
-                    Cantidad: {item.quantity}
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Añadir nuevo elemento */}
+            <div className="mt-4 p-4 bg-amber-50 rounded-xl border-2 border-amber-200">
+              <button
+                onClick={() => {
+                  const newItem = {
+                    id: Date.now(),
+                    item: 'Nuevo elemento',
+                    unitPrice: 0,
+                    quantity: 0,
+                    category: 'General'
+                  };
+                  setBudgetItems([...budgetItems, newItem]);
+                  toast.success('Elemento añadido al presupuesto');
+                }}
+                className="w-full px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus size={18} />
+                Añadir Elemento
+              </button>
+              <p className="text-xs text-amber-700 mt-2 text-center">
+                La cantidad se calcula automáticamente según invitados/mesas
+              </p>
             </div>
 
             <div className="mt-6 pt-4 border-t border-gray-200">
@@ -4503,7 +4666,7 @@ const WeddingSeatingApp = () => {
                 <span>Wedding Seating Planner</span>
               </span>
               <span className="hidden md:inline text-gray-400">|</span>
-              <span className="hidden md:inline">v1.0.0</span>
+              <span className="hidden md:inline">v1.0.3</span>
             </div>
             <div className="flex items-center gap-4 text-gray-500">
               <span className="hidden sm:inline">© 2025 Jose Luis Caceres</span>
