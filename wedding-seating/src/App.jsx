@@ -47,6 +47,7 @@ const WeddingSeatingApp = () => {
   const [importFile, setImportFile] = useState(null);
   const [importStatus, setImportStatus] = useState('');
   const isInitialMount = useRef(true);
+  const dragOverTarget = useRef(null);
 
   // 🔹 Cargar datos guardados
   useEffect(() => {
@@ -84,6 +85,86 @@ const WeddingSeatingApp = () => {
 
     loadSavedData();
   }, []);
+
+  // 🔹 Cerrar sidebar automáticamente cuando empieza el drag
+  useEffect(() => {
+    if (isDragging && draggedGuest) {
+      setShowMobileSidebar(false);
+    }
+  }, [isDragging, draggedGuest]);
+
+  // 🔹 Drag and drop táctil (touch)
+  useEffect(() => {
+    const handleTouchMove = (e) => {
+      if (!isDragging || !draggedGuest) return;
+
+      e.preventDefault(); // Prevenir scroll mientras se arrastra
+
+      const touch = e.touches[0];
+      setDragPos({ x: touch.clientX, y: touch.clientY });
+
+      // Detectar elemento debajo del toque
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+
+      // Buscar el asiento más cercano
+      const seatElement = elementBelow?.closest('.seat');
+      if (seatElement && seatElement !== dragOverTarget.current) {
+        // Resetear estilos del target anterior
+        if (dragOverTarget.current) {
+          dragOverTarget.current.style.transform = '';
+          dragOverTarget.current.style.boxShadow = '';
+        }
+
+        // Aplicar efecto visual al nuevo target
+        dragOverTarget.current = seatElement;
+        seatElement.style.transform = 'scale(1.15)';
+        seatElement.style.boxShadow = '0 8px 20px rgba(0,0,0,0.2)';
+      } else if (!seatElement && dragOverTarget.current) {
+        // Resetear cuando no hay target
+        dragOverTarget.current.style.transform = '';
+        dragOverTarget.current.style.boxShadow = '';
+        dragOverTarget.current = null;
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      if (!isDragging || !draggedGuest) return;
+
+      const touch = e.changedTouches[0];
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+
+      // Buscar el asiento donde se soltó
+      const seatElement = elementBelow?.closest('.seat');
+
+      if (seatElement) {
+        const tableId = parseInt(seatElement.dataset.tableId);
+        const seatIndex = parseInt(seatElement.dataset.seatIndex);
+
+        if (!isNaN(tableId) && !isNaN(seatIndex)) {
+          assignGuestToSeat(draggedGuest.id, tableId, seatIndex);
+        }
+
+        // Resetear estilos
+        seatElement.style.transform = '';
+        seatElement.style.boxShadow = '';
+      }
+
+      // Resetear estado
+      setIsDragging(false);
+      setDraggedGuest(null);
+      dragOverTarget.current = null;
+    };
+
+    if (isDragging) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd, { passive: false });
+    }
+
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, draggedGuest]);
 
   // 🔹 Guardar automáticamente cuando cambian los datos
   useEffect(() => {
@@ -386,6 +467,30 @@ const WeddingSeatingApp = () => {
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Manejo de drag táctil para mesas
+  const handleTouchStartTable = (e, tableId) => {
+    const table = tables.find(t => t.id === tableId);
+    const touch = e.touches[0];
+    const offsetX = touch.clientX - table.x;
+    const offsetY = touch.clientY - table.y;
+
+    const handleTouchMove = (ev) => {
+      ev.preventDefault();
+      const touch = ev.touches[0];
+      const newX = touch.clientX - offsetX + canvasRef.current.scrollLeft;
+      const newY = touch.clientY - offsetY + canvasRef.current.scrollTop;
+      setTables(prev => prev.map(t => t.id === tableId ? { ...t, x: newX, y: newY } : t));
+    };
+
+    const handleTouchEnd = () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
   };
 
   const exportPDF = async () => {
@@ -824,6 +929,7 @@ const WeddingSeatingApp = () => {
         className="absolute select-none transition-all duration-300 cursor-move"
         style={{ left: table.x, top: table.y }}
         onMouseDown={(e) => handleMouseDownTable(e, table.id)}
+        onTouchStart={(e) => handleTouchStartTable(e, table.id)}
         onContextMenu={handleContextMenu}
       >
         {/* Contenedor mesa */}
@@ -1009,7 +1115,7 @@ const WeddingSeatingApp = () => {
                 </div>
                 <div className="border-l border-gray-300 pl-2 md:pl-4">
                   <h1 className="text-base md:text-xl font-medium text-gray-900 tracking-tight">Wedding Seating Planner</h1>
-                  <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden sm:block">By Jose Luis Cáceres</p>
+                  <p className="text-[10px] md:text-xs text-gray-500 mt-0.5">By Jose Luis Caceres</p>
                 </div>
               </div>
 
@@ -1110,8 +1216,8 @@ const WeddingSeatingApp = () => {
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40"
-          style={{ minWidth: '100%', minHeight: '100vh' }}
+          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40 overflow-auto"
+          style={{ minWidth: '2000px', minHeight: '1500px' }}
           onDragOver={handleDragOver}
           onDrop={(e) => {
             const tableId = parseInt(e.dataTransfer.getData('tableId'));
@@ -1677,14 +1783,14 @@ const WeddingSeatingApp = () => {
 
       {/* Sidebar móvil de invitados */}
       <AnimatePresence>
-        {showMobileSidebar && (
+        {showMobileSidebar && !isDragging && (
           <>
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              className="fixed inset-0 bg-black/50 z-[55] lg:hidden"
               onClick={() => setShowMobileSidebar(false)}
             />
 
@@ -1694,7 +1800,7 @@ const WeddingSeatingApp = () => {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 bottom-0 w-80 bg-white shadow-2xl z-50 lg:hidden flex flex-col"
+              className="fixed top-0 left-0 bottom-0 w-80 bg-white shadow-2xl z-[60] lg:hidden flex flex-col"
             >
               <div className="p-4 border-b border-gray-200 bg-white">
                 <div className="flex items-center justify-between mb-4">
@@ -1740,7 +1846,19 @@ const WeddingSeatingApp = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.03 }}
-                      className="bg-gray-50 p-3 rounded-lg border border-gray-200"
+                      draggable
+                      onDragStart={(e) => {
+                        setDraggedGuest(guest);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onTouchStart={(e) => {
+                        setDraggedGuest(guest);
+                        setIsDragging(true);
+                        const touch = e.touches[0];
+                        setDragPos({ x: touch.clientX, y: touch.clientY });
+                        setShowMobileSidebar(false); // Cerrar sidebar al arrastrar
+                      }}
+                      className="bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-move active:opacity-50"
                       style={{
                         borderLeftWidth: '3px',
                         borderLeftColor: groupColor
@@ -1769,6 +1887,25 @@ const WeddingSeatingApp = () => {
           </>
         )}
       </AnimatePresence>
+
+      {/* Indicador visual de drag táctil - Círculo/Pelota */}
+      {isDragging && draggedGuest && (
+        <div
+          className="fixed pointer-events-none z-[100] transform -translate-x-1/2 -translate-y-1/2"
+          style={{
+            left: dragPos.x,
+            top: dragPos.y,
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 0.95 }}
+            className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 shadow-2xl flex items-center justify-center text-white font-bold text-lg border-4 border-white/30"
+          >
+            {draggedGuest.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+          </motion.div>
+        </div>
+      )}
 
       {/* Modal de gestión de grupos */}
       {showManageGroups && (
