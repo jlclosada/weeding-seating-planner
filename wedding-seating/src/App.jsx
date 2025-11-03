@@ -1,20 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Users, Plus, Trash2, UserPlus, Edit3, FileUp  } from 'lucide-react';
+import { Search, Users, Plus, Trash2, UserPlus, Edit3, FileUp, Heart, Sparkles, Download, Save, RotateCcw, Tag, X, Menu, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import toast, { Toaster } from 'react-hot-toast';
+
+// Grupos predefinidos iniciales
+const DEFAULT_GROUPS = [
+  { id: 'family', name: 'Familia', color: '#a8b5a1' },
+  { id: 'friends', name: 'Amigos', color: '#7fa99b' },
+  { id: 'work', name: 'Trabajo', color: '#8b9ca6' },
+  { id: 'couple', name: 'Pareja', color: '#c9b8a8' },
+  { id: 'other', name: 'Otros', color: '#b8a5b0' }
+];
+
+// Colores predefinidos para seleccionar
+const AVAILABLE_COLORS = [
+  '#a8b5a1', '#7fa99b', '#8b9ca6', '#c9b8a8', '#b8a5b0',
+  '#d4c4b0', '#9eb3b6', '#b8a892', '#a5b8ad', '#c4b5a5',
+  '#8fa89d', '#b0a699', '#97a8ab', '#baa898', '#a3b5a8'
+];
 
 const WeddingSeatingApp = () => {
   const [tables, setTables] = useState([]);
   const [guests, setGuests] = useState([]);
+  const [groups, setGroups] = useState(DEFAULT_GROUPS);
   const [searchTerm, setSearchTerm] = useState('');
   const [draggedGuest, setDraggedGuest] = useState(null);
   const [showAddTable, setShowAddTable] = useState(false);
   const [showAddGuests, setShowAddGuests] = useState(false);
   const [showImportGuests, setShowImportGuests] = useState(false);
+  const [showManageGroups, setShowManageGroups] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [newGuestNames, setNewGuestNames] = useState('');
+  const [newGuestGroup, setNewGuestGroup] = useState('other');
   const [newTableData, setNewTableData] = useState({ name: '', type: 'round', capacity: 10 });
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupColor, setNewGroupColor] = useState(AVAILABLE_COLORS[0]);
   const canvasRef = useRef(null);
   const [editingTable, setEditingTable] = useState(null);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
@@ -29,6 +53,7 @@ const WeddingSeatingApp = () => {
       try {
         const savedTables = localStorage.getItem('wedding-tables');
         const savedGuests = localStorage.getItem('wedding-guests');
+        const savedGroups = localStorage.getItem('wedding-groups');
         
         if (savedTables) {
           const parsedTables = JSON.parse(savedTables);
@@ -41,11 +66,18 @@ const WeddingSeatingApp = () => {
           setGuests(parsedGuests);
           console.log('Invitados cargados:', parsedGuests.length);
         }
+        
+        if (savedGroups) {
+          const parsedGroups = JSON.parse(savedGroups);
+          setGroups(parsedGroups);
+          console.log('Grupos cargados:', parsedGroups.length);
+        }
       } catch (err) {
         console.error("Error cargando localStorage:", err);
         // Opcional: resetear a valores por defecto
         setTables([]);
         setGuests([]);
+        setGroups(DEFAULT_GROUPS);
       }
     };
 
@@ -55,16 +87,17 @@ const WeddingSeatingApp = () => {
   // 🔹 Guardar automáticamente cuando cambian los datos
   useEffect(() => {
     // Solo guardar si hay datos
-    if (tables.length > 0 || guests.length > 0) {
+    if (tables.length > 0 || guests.length > 0 || groups.length > 0) {
       try {
         localStorage.setItem('wedding-tables', JSON.stringify(tables));
         localStorage.setItem('wedding-guests', JSON.stringify(guests));
+        localStorage.setItem('wedding-groups', JSON.stringify(groups));
         console.log('Datos guardados automáticamente');
       } catch (err) {
         console.error("Error guardando en localStorage:", err);
       }
     }
-  }, [tables, guests]); // Se ejecuta cuando cambian tables o guests
+  }, [tables, guests, groups]); // Se ejecuta cuando cambian tables, guests o groups
 
   // 🔹 Guardar manualmente
   const saveProgress = () => {
@@ -77,13 +110,21 @@ const WeddingSeatingApp = () => {
       const savedGuests = localStorage.getItem('wedding-guests');
       
       if (savedTables && savedGuests) {
-        alert('Progreso guardado correctamente 🥂');
+        toast.success('Progreso guardado correctamente 🥂', {
+          duration: 3000,
+          icon: '💾',
+          style: {
+            borderRadius: '12px',
+            background: '#10b981',
+            color: '#fff',
+          },
+        });
       } else {
-        alert('Error al guardar el progreso');
+        toast.error('Error al guardar el progreso');
       }
     } catch (err) {
       console.error("Error guardando:", err);
-      alert('Error al guardar el progreso');
+      toast.error('Error al guardar el progreso');
     }
   };
 
@@ -140,6 +181,10 @@ const WeddingSeatingApp = () => {
         // Añadir a los invitados existentes
         setGuests(prev => [...prev, ...newGuests]);
         setImportStatus(`✅ ${newGuests.length} invitados importados correctamente`);
+        toast.success(`${newGuests.length} invitados importados correctamente`, {
+          icon: '🎉',
+          duration: 3000,
+        });
         setImportFile(null);
         
         // Cerrar modal después de 2 segundos
@@ -323,111 +368,227 @@ const WeddingSeatingApp = () => {
     if (!canvasRef.current) return;
 
     try {
-      // Crear PDF principal con el diseño visual
-      const canvasElement = canvasRef.current;
-      const canvasImage = await html2canvas(canvasElement, { 
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#FDF6F0'
-      });
+      toast.loading('Generando PDF...', { id: 'pdf-export' });
 
-      const imgData = canvasImage.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'landscape',
-        unit: 'px',
-        format: [canvasElement.scrollWidth, canvasElement.scrollHeight]
+        unit: 'mm',
+        format: 'a4',
+        compress: true
       });
 
-      // Página 1: Diseño visual
-      pdf.addImage(imgData, 'PNG', 0, 0, canvasElement.scrollWidth, canvasElement.scrollHeight);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Página 1: Resumen detallado por mesa
+      // Fondo
+      pdf.setFillColor(253, 246, 240);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
       
-      // Página 2: Resumen detallado por mesa
-      pdf.addPage();
+      // Header decorativo
+      pdf.setFillColor(168, 85, 247);
+      pdf.rect(0, 0, pageWidth, 20, 'F');
       
       // Título del resumen
-      pdf.setFontSize(20);
-      pdf.setTextColor(60, 42, 33); // Color #3C2A21
-      pdf.text('Resumen de Asignación de Mesas', 20, 30);
+      pdf.setFontSize(18);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Resumen de Asignación de Mesas', pageWidth / 2, 13, { align: 'center' });
       
-      let yPosition = 60;
+      let yPosition = 30;
+      const leftMargin = 15;
+      const rightMargin = pageWidth - 15;
+      const columnWidth = (pageWidth - 30) / 2;
+      let currentColumn = 0;
       
-      // Información de cada mesa
+      // Información de cada mesa con diseño mejorado
       tables.forEach((table, index) => {
         const assignedGuests = guests.filter(g => g.tableId === table.id);
+        const tableHeight = 15 + (assignedGuests.length * 6) + 8;
         
-        // Si no hay espacio para otra mesa, crear nueva página
-        if (yPosition > 250) {
-          pdf.addPage();
-          yPosition = 30;
+        // Si no hay espacio para otra mesa, crear nueva página o cambiar columna
+        if (yPosition + tableHeight > pageHeight - 10) {
+          if (currentColumn === 0) {
+            currentColumn = 1;
+            yPosition = 30;
+          } else {
+            pdf.addPage();
+            pdf.setFillColor(253, 246, 240);
+            pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+            yPosition = 15;
+            currentColumn = 0;
+          }
         }
         
-        // Encabezado de mesa
-        pdf.setFontSize(16);
-        pdf.setTextColor(92, 64, 51); // Color #5C4033
-        pdf.text(`${table.name} (${assignedGuests.length}/${table.capacity} invitados)`, 20, yPosition);
+        const xPosition = currentColumn === 0 ? leftMargin : leftMargin + columnWidth + 5;
         
-        yPosition += 10;
+        // Caja de mesa
+        pdf.setFillColor(255, 241, 242);
+        pdf.roundedRect(xPosition, yPosition, columnWidth - 5, tableHeight, 3, 3, 'F');
+        
+        // Borde
+        pdf.setDrawColor(244, 63, 94);
+        pdf.setLineWidth(0.5);
+        pdf.roundedRect(xPosition, yPosition, columnWidth - 5, tableHeight, 3, 3, 'S');
+        
+        // Encabezado de mesa
+        pdf.setFontSize(12);
+        pdf.setTextColor(168, 181, 161);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(table.name, xPosition + 3, yPosition + 6);
+        
+        // Capacidad
+        pdf.setFontSize(9);
+        pdf.setTextColor(107, 114, 128);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(assignedGuests.length + '/' + table.capacity + ' asientos', xPosition + 3, yPosition + 11);
+        
+        let guestY = yPosition + 17;
         
         // Lista de invitados
-        pdf.setFontSize(10);
-        pdf.setTextColor(60, 42, 33); // Color #3C2A21
+        pdf.setFontSize(9);
+        pdf.setTextColor(55, 65, 81);
         
         if (assignedGuests.length === 0) {
-          pdf.text('  - Sin invitados asignados', 25, yPosition);
-          yPosition += 15;
+          pdf.setTextColor(156, 163, 175);
+          pdf.text('Sin invitados asignados', xPosition + 5, guestY);
         } else {
           assignedGuests.forEach(guest => {
-            const seatInfo = guest.seatIndex !== null ? ` - Asiento ${guest.seatIndex + 1}` : '';
-            pdf.text(`  • ${guest.name}${seatInfo}`, 25, yPosition);
-            yPosition += 8;
-            
-            // Si se acaba el espacio en la página
-            if (yPosition > 270) {
-              pdf.addPage();
-              yPosition = 30;
+            if (guestY < yPosition + tableHeight - 3) {
+              const seatInfo = guest.seatIndex !== null ? ' (' + (guest.seatIndex + 1) + ')' : '';
+              pdf.text('- ' + guest.name + seatInfo, xPosition + 5, guestY);
+              guestY += 5;
             }
           });
         }
         
-        yPosition += 10; // Espacio entre mesas
+        yPosition += tableHeight + 5;
       });
       
-      // Página 3: Resumen general
+      // Página 2: Resumen general con diseño premium
       pdf.addPage();
-      pdf.setFontSize(20);
-      pdf.setTextColor(60, 42, 33);
-      pdf.text('Resumen General de la Boda', 20, 30);
       
-      pdf.setFontSize(12);
-      let summaryY = 60;
+      // Fondo
+      pdf.setFillColor(253, 246, 240);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+      
+      // Header decorativo
+      pdf.setFillColor(16, 185, 129);
+      pdf.rect(0, 0, pageWidth, 20, 'F');
+      
+      pdf.setFontSize(18);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Resumen General de la Boda', pageWidth / 2, 13, { align: 'center' });
+      
+      let summaryY = 35;
       
       const totalGuests = guests.length;
-      const assignedGuests = guests.filter(g => g.tableId !== null).length;
-      const unassignedGuests = guests.filter(g => g.tableId === null).length;
+      const assignedGuestsCount = guests.filter(g => g.tableId !== null).length;
+      const unassignedGuestsCount = guests.filter(g => g.tableId === null).length;
       
-      pdf.text(`Total de invitados: ${totalGuests}`, 20, summaryY);
-      summaryY += 15;
-      pdf.text(`Invitados asignados: ${assignedGuests}`, 20, summaryY);
-      summaryY += 15;
-      pdf.text(`Invitados sin asignar: ${unassignedGuests}`, 20, summaryY);
-      summaryY += 15;
-      pdf.text(`Total de mesas: ${tables.length}`, 20, summaryY);
-      summaryY += 25;
+      // Tarjetas de estadísticas (sin iconos problemáticos)
+      const stats = [
+        { label: 'Total de Invitados', value: totalGuests, color: [168, 181, 161] },
+        { label: 'Invitados Asignados', value: assignedGuestsCount, color: [127, 169, 155] },
+        { label: 'Sin Asignar', value: unassignedGuestsCount, color: [201, 184, 168] },
+        { label: 'Total de Mesas', value: tables.length, color: [139, 156, 166] }
+      ];
       
-      // Mesas con capacidad
+      const cardWidth = (pageWidth - 40) / 2;
+      const cardHeight = 25;
+      let cardX = 15;
+      let cardY = summaryY;
+      
+      stats.forEach((stat, idx) => {
+        if (idx % 2 === 0 && idx > 0) {
+          cardY += cardHeight + 5;
+          cardX = 15;
+        }
+        
+        // Fondo de tarjeta
+        pdf.setFillColor(stat.color[0], stat.color[1], stat.color[2], 0.1);
+        pdf.roundedRect(cardX, cardY, cardWidth, cardHeight, 3, 3, 'F');
+        
+        // Borde
+        pdf.setDrawColor(stat.color[0], stat.color[1], stat.color[2]);
+        pdf.setLineWidth(0.5);
+        pdf.roundedRect(cardX, cardY, cardWidth, cardHeight, 3, 3, 'S');
+        
+        // Indicador visual en lugar de icono
+        pdf.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
+        pdf.circle(cardX + 8, cardY + 12, 3, 'F');
+        
+        // Label
+        pdf.setFontSize(10);
+        pdf.setTextColor(107, 114, 128);
+        pdf.text(stat.label, cardX + 15, cardY + 10);
+        
+        // Value
+        pdf.setFontSize(18);
+        pdf.setTextColor(stat.color[0], stat.color[1], stat.color[2]);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(stat.value.toString(), cardX + 15, cardY + 20);
+        pdf.setFont('helvetica', 'normal');
+        
+        cardX += cardWidth + 10;
+      });
+      
+      summaryY = cardY + cardHeight + 20;
+      
+      // Sección de capacidad por mesa
       pdf.setFontSize(14);
-      pdf.text('Capacidad por Mesa:', 20, summaryY);
+      pdf.setTextColor(55, 65, 81);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Capacidad por Mesa', 15, summaryY);
       summaryY += 10;
       
-      pdf.setFontSize(10);
-      tables.forEach(table => {
+      // Tabla de mesas
+      tables.forEach((table, idx) => {
+        if (summaryY > pageHeight - 15) {
+          pdf.addPage();
+          pdf.setFillColor(253, 246, 240);
+          pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+          summaryY = 20;
+        }
+        
         const assignedCount = guests.filter(g => g.tableId === table.id).length;
-        pdf.text(`  ${table.name}: ${assignedCount}/${table.capacity} (${((assignedCount/table.capacity)*100).toFixed(0)}% llena)`, 25, summaryY);
-        summaryY += 8;
+        const percentage = ((assignedCount/table.capacity)*100).toFixed(0);
+        
+        // Barra de progreso más compacta
+        const barWidth = pageWidth - 120; // Reducido para dar más espacio al texto
+        const barHeight = 6; // Más delgada
+        
+        pdf.setFontSize(9);
+        pdf.setTextColor(55, 65, 81);
+        pdf.text(table.name, 15, summaryY);
+        
+        // Fondo de barra
+        pdf.setFillColor(229, 231, 235);
+        pdf.roundedRect(70, summaryY - 4, barWidth, barHeight, 2, 2, 'F');
+        
+        // Progreso
+        const fillWidth = (barWidth * assignedCount) / table.capacity;
+        const color = percentage < 50 ? [201, 184, 168] : percentage < 80 ? [168, 181, 161] : [127, 169, 155];
+        pdf.setFillColor(color[0], color[1], color[2]);
+        pdf.roundedRect(70, summaryY - 4, fillWidth, barHeight, 2, 2, 'F');
+        
+        // Texto con más espacio
+        pdf.setFontSize(8);
+        pdf.setTextColor(107, 114, 139);
+        pdf.text(assignedCount + '/' + table.capacity + ' (' + percentage + '%)', 70 + barWidth + 3, summaryY);
+        
+        summaryY += 10; // Espaciado reducido
       });
+      
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(156, 163, 175);
+      pdf.text(`Generado el ${new Date().toLocaleDateString('es-ES')} - Planificador de Boda`, pageWidth / 2, pageHeight - 5, { align: 'center' });
 
       pdf.save('planificacion-boda-completa.pdf');
+      
+      toast.success('PDF generado correctamente', { id: 'pdf-export', icon: '🎉' });
       
     } catch (error) {
       console.error('Error al exportar PDF:', error);
@@ -481,11 +642,55 @@ const WeddingSeatingApp = () => {
       id: Date.now() + Math.random(),
       name: name.trim(),
       tableId: null,
-      seatIndex: null
+      seatIndex: null,
+      group: newGuestGroup
     }));
     setGuests([...guests, ...newGuests]);
     setNewGuestNames('');
+    setNewGuestGroup('other');
     setShowAddGuests(false);
+  };
+
+  // Obtener color del grupo
+  const getGroupColor = (groupId) => {
+    const group = groups.find(g => g.id === groupId);
+    return group ? group.color : '#b8a5b0';
+  };
+
+  // Añadir nuevo grupo
+  const addGroup = () => {
+    if (!newGroupName.trim()) {
+      toast.error('El nombre del grupo no puede estar vacío');
+      return;
+    }
+
+    const newGroup = {
+      id: Date.now().toString(),
+      name: newGroupName.trim(),
+      color: newGroupColor
+    };
+
+    setGroups([...groups, newGroup]);
+    setNewGroupName('');
+    setNewGroupColor(AVAILABLE_COLORS[0]);
+    toast.success(`Grupo "${newGroup.name}" creado correctamente`, {
+      icon: '✨',
+    });
+  };
+
+  // Eliminar grupo
+  const deleteGroup = (groupId) => {
+    // No permitir eliminar si hay invitados con ese grupo
+    const guestsInGroup = guests.filter(g => g.group === groupId).length;
+    if (guestsInGroup > 0) {
+      toast.error(`No se puede eliminar: hay ${guestsInGroup} invitado(s) en este grupo`, {
+        duration: 4000,
+      });
+      return;
+    }
+
+    setGroups(groups.filter(g => g.id !== groupId));
+    toast.success('Grupo eliminado correctamente');
   };
 
   // Eliminar mesa
@@ -518,7 +723,12 @@ const WeddingSeatingApp = () => {
       localStorage.removeItem('wedding-guests');
       setTables([]);
       setGuests([]);
-      alert('Datos reseteados correctamente');
+      toast.success('Datos reseteados correctamente', {
+        icon: '🔄',
+        style: {
+          borderRadius: '12px',
+        },
+      });
     }
   };
 
@@ -594,10 +804,11 @@ const WeddingSeatingApp = () => {
       >
         {/* Contenedor mesa */}
         <div
-          className={`relative ${isRound ? 'rounded-full' : 'rounded-xl'}
-                      bg-[#FFF8F3] shadow-lg border-2 border-amber-300
-                      hover:scale-105 transition-all duration-300 cursor-pointer
-                      flex items-center justify-center`}
+          className={`relative ${isRound ? 'rounded-full' : 'rounded-2xl'}
+                      bg-gradient-to-br from-white to-violet-50 shadow-xl border-3 border-violet-300
+                      hover:scale-105 hover:shadow-violet-300/40 transition-all duration-300 cursor-pointer
+                      flex items-center justify-center table-container
+                      backdrop-blur-sm bg-opacity-95`}
           style={{
             width: isRound ? tableSize : rectWidth,
             height: isRound ? tableSize : rectHeight,
@@ -608,7 +819,7 @@ const WeddingSeatingApp = () => {
           <div className="absolute inset-0 flex flex-col items-center justify-center p-2 pointer-events-none overflow-hidden">
             {assignedGuests.length === 0 ? (
               // Mostrar nombre de mesa si no hay invitados
-              <div className="font-playfair text-lg text-[#3C2A21] font-semibold text-center">
+              <div className="text-lg text-violet-600 font-semibold text-center drop-shadow-sm">
                 {table.name}
               </div>
             ) : (
@@ -617,7 +828,7 @@ const WeddingSeatingApp = () => {
                 {assignedGuests.map(guest => (
                   <div 
                     key={guest.id}
-                    className={`${fontSize} text-[#3C2A21] font-medium text-center leading-tight w-full px-1 truncate`}
+                    className={`${fontSize} text-gray-800 font-medium text-center leading-tight w-full px-1 truncate table-guest-name`}
                     title={guest.name}
                     style={{
                       lineHeight: '1.1',
@@ -639,34 +850,37 @@ const WeddingSeatingApp = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className="absolute z-50 bg-white border rounded-lg shadow-lg flex flex-col"
+                className="absolute z-50 glass-card bg-white/95 backdrop-blur-md border-2 border-rose-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
                 style={{ top: menuPos.y - table.y, left: menuPos.x - table.x }}
               >
                 <button
-                  className="px-4 py-2 hover:bg-blue-500 hover:text-white rounded-t"
+                  className="px-5 py-3 hover:bg-gradient-to-r hover:from-blue-500 hover:to-blue-600 hover:text-white transition-all font-medium border-b border-rose-100 flex items-center gap-2"
                   onClick={() => {
                     setMenuVisible(false);
                     setEditingTable(table);
                   }}
                 >
+                  <Edit3 size={16} />
                   Editar
                 </button>
                 <button
-                  className="px-4 py-2 hover:bg-gray-500 hover:text-white"
+                  className="px-5 py-3 hover:bg-gradient-to-r hover:from-purple-500 hover:to-purple-600 hover:text-white transition-all font-medium border-b border-rose-100 flex items-center gap-2"
                   onClick={() => {
                     setMenuVisible(false);
                     setTableSummary(table);
                   }}
                 >
+                  <Users size={16} />
                   Ver Resumen
                 </button>
                 <button
-                  className="px-4 py-2 hover:bg-red-500 hover:text-white rounded-b"
+                  className="px-5 py-3 hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 hover:text-white transition-all font-medium flex items-center gap-2"
                   onClick={() => {
                     setMenuVisible(false);
                     if (confirm(`¿Eliminar ${table.name}?`)) deleteTable(table.id);
                   }}
                 >
+                  <Trash2 size={16} />
                   Eliminar
                 </button>
               </motion.div>
@@ -706,10 +920,10 @@ const WeddingSeatingApp = () => {
                 }}
                 draggable={!!guest}
                 onDragStart={(e) => guest && handleDragStart(e, guest)}
-                className={`seat absolute w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs cursor-pointer transition-all duration-200 group
+                className={`seat absolute w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs cursor-pointer transition-all duration-200 group shadow-md
                   ${guest
-                    ? 'bg-rose-400 text-white border-rose-500 hover:bg-rose-500'
-                    : 'bg-white border-gray-400 hover:border-rose-400'
+                    ? 'bg-gradient-to-br from-violet-400 to-indigo-500 text-white border-violet-300 hover:from-violet-500 hover:to-indigo-600 hover:shadow-lg hover:scale-110'
+                    : 'bg-white border-violet-300 hover:border-violet-500 hover:bg-violet-50 hover:scale-105'
                   }`}
                 style={{ left: seatX, top: seatY }}
                 data-table-id={table.id}
@@ -746,57 +960,134 @@ const WeddingSeatingApp = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#FDF6F0] to-[#FAE1DD] text-[#3C2A21] font-inter">
+    <div className="flex h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 text-gray-800 relative overflow-hidden">
+      {/* Toaster para notificaciones */}
+      <Toaster position="top-right" />
+      
+      {/* Decoración de fondo sutil */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-10 left-10 w-96 h-96 bg-[#a8b5a1]/10 rounded-full mix-blend-multiply filter blur-3xl animate-float"></div>
+        <div className="absolute top-1/2 right-10 w-96 h-96 bg-[#7fa99b]/10 rounded-full mix-blend-multiply filter blur-3xl animate-float" style={{animationDelay: '1s'}}></div>
+        <div className="absolute bottom-10 left-1/3 w-96 h-96 bg-[#8b9ca6]/10 rounded-full mix-blend-multiply filter blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
+      </div>
       {/* Zona principal */}
-      <div className="flex-1 relative overflow-auto">
-        <div className="absolute top-4 left-4 z-10 flex gap-3 animate-fadeIn">
+      <div className="flex-1 relative overflow-auto z-10">
+        {/* Header minimalista y elegante */}
+        <div className="absolute top-0 left-0 right-0 bg-white border-b border-gray-200 shadow-sm z-20">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 md:py-4">
+            <div className="flex items-center justify-between">
+              {/* Logo y título */}
+              <div className="flex items-center gap-2 md:gap-4">
+                <div className="flex items-center gap-1.5 md:gap-2">
+                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#a8b5a1]"></div>
+                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#7fa99b]"></div>
+                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-[#8b9ca6]"></div>
+                </div>
+                <div className="border-l border-gray-300 pl-2 md:pl-4">
+                  <h1 className="text-base md:text-xl font-medium text-gray-900 tracking-tight">Planificador de Boda</h1>
+                  <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden sm:block">Organización de Mesas</p>
+                </div>
+              </div>
+              
+              {/* Desktop: Stats */}
+              <div className="hidden lg:flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="w-2 h-2 rounded-full bg-[#a8b5a1]"></div>
+                  <span className="font-medium text-gray-700">{tables.length}</span>
+                  <span className="text-gray-500">mesas</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="w-2 h-2 rounded-full bg-[#7fa99b]"></div>
+                  <span className="font-medium text-gray-700">{guests.length}</span>
+                  <span className="text-gray-500">invitados</span>
+                </div>
+              </div>
+              
+              {/* Mobile: Menu buttons */}
+              <div className="flex items-center gap-2 lg:hidden">
+                <button
+                  onClick={() => setShowMobileSidebar(true)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Ver invitados"
+                >
+                  <Users size={20} className="text-gray-700" />
+                </button>
+                <button
+                  onClick={() => setShowMobileMenu(true)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Menú"
+                >
+                  <Menu size={20} className="text-gray-700" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Toolbar minimalista - Solo desktop */}
+        <div className="absolute top-16 md:top-20 left-0 right-0 z-10 px-4 md:px-8 py-2 md:py-3 animate-fadeIn hidden lg:block">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-sm border border-gray-200 p-3">
+              <div className="flex flex-wrap items-center justify-center gap-2">
           <button
             onClick={() => setShowAddTable(true)}
-            className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 transition-all"
+            className="bg-[#a8b5a1] hover:bg-[#8b9e8a] text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
           >
-            <Plus size={20} />
-            Nueva Mesa
+            <Plus size={16} />
+            <span>Nueva Mesa</span>
           </button>
           <button
             onClick={() => setShowAddGuests(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 transition-all"
+            className="bg-[#7fa99b] hover:bg-[#6b8f82] text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
           >
-            <UserPlus size={20} />
-            Añadir Invitados
+            <UserPlus size={16} />
+            <span>Añadir Invitados</span>
+          </button>
+          <button
+            onClick={() => setShowManageGroups(true)}
+            className="bg-[#c9b8a8] hover:bg-[#b5a598] text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+          >
+            <Tag size={16} />
+            <span>Gestionar Grupos</span>
           </button>
            <button
               onClick={() => setShowImportGuests(true)}
-              className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 transition-all"
+              className="bg-[#8b9ca6] hover:bg-[#758593] text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
             >
-              <FileUp size={20} />
-              Importar Excel/CSV
+              <FileUp size={16} />
+              <span>Importar</span>
             </button>
           <button
             onClick={exportPDF}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2"
+            className="bg-[#c9b8a8] hover:bg-[#b5a598] text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
           >
-            Exportar PDF
+            <Download size={16} />
+            <span>Exportar PDF</span>
           </button>
           <button
             onClick={saveProgress}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2"
+            className="bg-[#7fa99b] hover:bg-[#6b8f82] text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
           >
-            💾 Guardar Progreso
+            <Save size={16} />
+            <span>Guardar</span>
           </button>
           <button
             onClick={resetAllData}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2"
+            className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
           >
-            <Trash2 size={20} />
-            Resetear Todo
+            <RotateCcw size={16} />
+            <span>Resetear</span>
           </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="relative p-12"
-          style={{ minWidth: '2000px', minHeight: '2000px' }}
+          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40"
+          style={{ minWidth: '100%', minHeight: '100vh' }}
           onDragOver={handleDragOver}
           onDrop={(e) => {
             const tableId = parseInt(e.dataTransfer.getData('tableId'));
@@ -820,220 +1111,775 @@ const WeddingSeatingApp = () => {
         </div>
       </div>
 
-      {/* Panel lateral */}
-      <div className="w-96 bg-[#3C2A21] text-[#FDF6F0] border-l border-[#E2C275] flex flex-col">
-        <div className="p-5 border-b border-[#E2C275] bg-[#4E3629]">
-          <h2 className="font-playfair text-lg mb-3 flex items-center gap-2">
-            <Users size={20} /> Estadísticas
+      {/* Panel lateral - Desktop */}
+      <div className="hidden lg:flex w-96 bg-gradient-to-b from-gray-50 to-white border-l border-gray-200 flex-col shadow-xl z-10 relative">
+        <div className="p-6 border-b border-gray-200 bg-white relative z-10">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-900">
+            <Sparkles size={20} className="text-[#a8b5a1]" /> Estadísticas
           </h2>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Total invitados:</span><span>{guests.length}</span></div>
-            <div className="flex justify-between"><span>Asignados:</span><span>{assignedGuests.length}</span></div>
-            <div className="flex justify-between"><span>Sin asignar:</span><span>{unassignedGuests.length}</span></div>
-            <div className="flex justify-between"><span>Mesas:</span><span>{tables.length}</span></div>
+            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="flex items-center gap-2 text-gray-700"><Users size={16} className="text-[#7fa99b]" />Total invitados</span>
+              <span className="font-bold text-lg text-gray-900">{guests.length}</span>
+            </div>
+            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="flex items-center gap-2 text-gray-700">✓ Asignados</span>
+              <span className="font-bold text-lg text-[#7fa99b]">{assignedGuests.length}</span>
+            </div>
+            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="flex items-center gap-2 text-gray-700">⏳ Sin asignar</span>
+              <span className="font-bold text-lg text-[#c9b8a8]">{unassignedGuests.length}</span>
+            </div>
+            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="flex items-center gap-2 text-gray-700">🪑 Mesas</span>
+              <span className="font-bold text-lg text-gray-900">{tables.length}</span>
+            </div>
           </div>
         </div>
 
-        <div className="p-4 border-b border-[#E2C275] bg-[#4E3629]">
+        <div className="p-4 border-b border-gray-200 bg-white/95 backdrop-blur-sm relative z-10">
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-[#EAD7C3]" size={20} />
+            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="Buscar invitado..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#5C4033]/80 text-[#FFF9F4] placeholder-[#EAD7C3]"
+              className="w-full pl-10 pr-10 py-3 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-[#a8b5a1] focus:ring-1 focus:ring-[#a8b5a1]"
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-3 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                title="Limpiar búsqueda"
+              >
+                <X size={16} className="text-gray-400" />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 relative z-10">
           {unassignedGuests.filter(g =>
               g.name.toLowerCase().includes(searchTerm.toLowerCase())
-            ).map(guest => (
-              <div
+            ).map((guest, index) => {
+              const groupColor = getGroupColor(guest.group || 'other');
+              return (
+              <motion.div
                 key={guest.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
                 onMouseDown={(e) => {
-                  e.preventDefault(); // evitar conflicto con drag nativo
+                  e.preventDefault();
                   setDraggedGuest(guest);
                   setIsDragging(true);
                   setDragPos({ x: e.clientX, y: e.clientY });
                 }}
-                className="bg-[#5C4033]/70 p-3 rounded-lg cursor-pointer hover:bg-[#704B3B]/80 transition-all border border-[#E2C275]/30"
+                className="bg-white/90 backdrop-blur-sm p-3 rounded-lg cursor-move hover:bg-white transition-all border border-gray-200 hover:border-gray-300 hover:shadow-md group"
+                style={{
+                  borderLeftWidth: '3px',
+                  borderLeftColor: groupColor
+                }}
                 title={guest.name}
               >
-                {guest.name}
-              </div>
-          ))}
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm"
+                    style={{ backgroundColor: groupColor }}
+                  >
+                    {guest.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="font-medium text-gray-800 text-sm group-hover:text-gray-900 transition-colors">{guest.name}</span>
+                </div>
+              </motion.div>
+            );
+          })}
+          {unassignedGuests.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+            <div className="text-center text-gray-400 py-12">
+              <Users size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="text-sm">No hay invitados sin asignar</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Modal añadir mesa */}
       {showAddTable && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-xl w-80">
-            <h3 className="text-lg font-semibold mb-4">Añadir Mesa</h3>
-            <input
-              type="text"
-              placeholder="Nombre de mesa"
-              value={newTableData.name}
-              onChange={(e) => setNewTableData({ ...newTableData, name: e.target.value })}
-              className="w-full border rounded p-2 mb-3"
-            />
-            <select
-              value={newTableData.type}
-              onChange={(e) => setNewTableData({ ...newTableData, type: e.target.value })}
-              className="w-full border rounded p-2 mb-3"
-            >
-              <option value="round">Redonda</option>
-              <option value="rectangular">Rectangular</option>
-            </select>
-            <input
-              type="number"
-              min="1"
-              value={newTableData.capacity}
-              onChange={(e) => setNewTableData({ ...newTableData, capacity: e.target.value })}
-              className="w-full border rounded p-2 mb-3"
-            />
-            <div className="flex justify-between">
-              <button onClick={() => setShowAddTable(false)} className="px-4 py-2 rounded bg-gray-300">Cancelar</button>
-              <button onClick={addTable} className="px-4 py-2 rounded bg-rose-500 text-white">Añadir</button>
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-96 border-2 border-rose-200"
+          >
+            <h3 className="elegant-title text-2xl font-bold mb-6 text-rose-600 flex items-center gap-2">
+              <Plus className="bg-rose-100 rounded-full p-1" size={28} />
+              Añadir Mesa
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la mesa</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Mesa Principal"
+                  value={newTableData.name}
+                  onChange={(e) => setNewTableData({ ...newTableData, name: e.target.value })}
+                  className="w-full border-2 border-rose-200 rounded-xl p-3 focus:border-rose-400 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de mesa</label>
+                <select
+                  value={newTableData.type}
+                  onChange={(e) => setNewTableData({ ...newTableData, type: e.target.value })}
+                  className="w-full border-2 border-rose-200 rounded-xl p-3 focus:border-rose-400 transition-colors"
+                >
+                  <option value="round">Redonda ●</option>
+                  <option value="rectangular">Rectangular ▭</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Capacidad (número de asientos)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newTableData.capacity}
+                  onChange={(e) => setNewTableData({ ...newTableData, capacity: e.target.value })}
+                  className="w-full border-2 border-rose-200 rounded-xl p-3 focus:border-rose-400 transition-colors"
+                />
+              </div>
             </div>
-          </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowAddTable(false)} className="flex-1 px-5 py-3 rounded-xl bg-gray-200 hover:bg-gray-300 font-medium transition-colors">Cancelar</button>
+              <button onClick={addTable} className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-medium shadow-lg transition-all">Añadir</button>
+            </div>
+          </motion.div>
         </div>
       )}
 
       {/* Modal editar mesa */}
       {editingTable && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-xl w-80">
-            <h3 className="text-lg font-semibold mb-4">Editar Mesa</h3>
-            <input
-              type="text"
-              placeholder="Nombre de mesa"
-              value={editingTable.name}
-              onChange={(e) => setEditingTable({ ...editingTable, name: e.target.value })}
-              className="w-full border rounded p-2 mb-3"
-            />
-            <select
-              value={editingTable.type}
-              onChange={(e) => setEditingTable({ ...editingTable, type: e.target.value })}
-              className="w-full border rounded p-2 mb-3"
-            >
-              <option value="round">Redonda</option>
-              <option value="rectangular">Rectangular</option>
-            </select>
-            <input
-              type="number"
-              min="1"
-              value={editingTable.capacity}
-              onChange={(e) => setEditingTable({ ...editingTable, capacity: e.target.value })}
-              className="w-full border rounded p-2 mb-3"
-            />
-            <div className="flex items-center justify-between mb-3">
-              <label className="flex items-center gap-2">
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-96 border-2 border-blue-200"
+          >
+            <h3 className="elegant-title text-2xl font-bold mb-6 text-blue-600 flex items-center gap-2">
+              <Edit3 className="bg-blue-100 rounded-full p-1" size={28} />
+              Editar Mesa
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la mesa</label>
                 <input
-                  type="checkbox"
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      // borrar invitados asignados
-                      const updatedGuests = guests.map(g =>
-                        g.tableId === editingTable.id ? { ...g, tableId: null, seatIndex: null } : g
-                      );
-                      setGuests(updatedGuests);
-                    }
-                  }}
+                  type="text"
+                  placeholder="Nombre de mesa"
+                  value={editingTable.name}
+                  onChange={(e) => setEditingTable({ ...editingTable, name: e.target.value })}
+                  className="w-full border-2 border-blue-200 rounded-xl p-3 focus:border-blue-400 transition-colors"
                 />
-                Borrar invitados asignados
-              </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de mesa</label>
+                <select
+                  value={editingTable.type}
+                  onChange={(e) => setEditingTable({ ...editingTable, type: e.target.value })}
+                  className="w-full border-2 border-blue-200 rounded-xl p-3 focus:border-blue-400 transition-colors"
+                >
+                  <option value="round">Redonda ●</option>
+                  <option value="rectangular">Rectangular ▭</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Capacidad</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editingTable.capacity}
+                  onChange={(e) => setEditingTable({ ...editingTable, capacity: e.target.value })}
+                  className="w-full border-2 border-blue-200 rounded-xl p-3 focus:border-blue-400 transition-colors"
+                />
+              </div>
+              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-5 h-5 text-red-500 rounded"
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const updatedGuests = guests.map(g =>
+                          g.tableId === editingTable.id ? { ...g, tableId: null, seatIndex: null } : g
+                        );
+                        setGuests(updatedGuests);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium text-red-700">Borrar invitados asignados</span>
+                </label>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <button onClick={() => setEditingTable(null)} className="px-4 py-2 rounded bg-gray-300">Cancelar</button>
-              <button onClick={saveEditedTable} className="px-4 py-2 rounded bg-blue-500 text-white">Guardar</button>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEditingTable(null)} className="flex-1 px-5 py-3 rounded-xl bg-gray-200 hover:bg-gray-300 font-medium transition-colors">Cancelar</button>
+              <button onClick={saveEditedTable} className="flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium shadow-lg transition-all">Guardar</button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
 
       {/* Modal añadir invitados */}
       {showAddGuests && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-xl w-80">
-            <h3 className="text-lg font-semibold mb-4">Añadir Invitados</h3>
-            <textarea
-              placeholder="Un nombre por línea"
-              value={newGuestNames}
-              onChange={(e) => setNewGuestNames(e.target.value)}
-              className="w-full border rounded p-2 mb-3 h-40"
-            />
-            <div className="flex justify-between">
-              <button onClick={() => setShowAddGuests(false)} className="px-4 py-2 rounded bg-gray-300">Cancelar</button>
-              <button onClick={addGuests} className="px-4 py-2 rounded bg-amber-500 text-white">Añadir</button>
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl p-8 shadow-2xl w-[480px] border border-gray-200"
+          >
+            <h3 className="text-2xl font-semibold mb-6 text-gray-900 flex items-center gap-2">
+              <UserPlus className="text-[#7fa99b]" size={28} />
+              Añadir Invitados
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Grupo</label>
+                <select
+                  value={newGuestGroup}
+                  onChange={(e) => setNewGuestGroup(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:border-[#a8b5a1] transition-colors"
+                >
+                  {groups.map(group => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getGroupColor(newGuestGroup) }}></div>
+                  <span className="text-xs text-gray-500">Color del grupo seleccionado</span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nombres (uno por línea)</label>
+                <textarea
+                  placeholder="Ana García&#10;Carlos López&#10;María Martínez..."
+                  value={newGuestNames}
+                  onChange={(e) => setNewGuestNames(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg p-3 h-48 focus:border-[#a8b5a1] transition-colors resize-none"
+                />
+              </div>
             </div>
-          </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowAddGuests(false)} className="flex-1 px-5 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 font-medium transition-colors text-gray-700">Cancelar</button>
+              <button onClick={addGuests} className="flex-1 px-5 py-3 rounded-lg bg-[#7fa99b] hover:bg-[#6b8f82] text-white font-medium shadow-sm transition-all">Añadir</button>
+            </div>
+          </motion.div>
         </div>
       )}
 
       {isDragging && draggedGuest && (
         <motion.div
-          className="w-10 h-10 rounded-full bg-rose-400 text-white flex items-center justify-center shadow-lg z-50 fixed top-0 left-0 pointer-events-none"
-          style={{ x: dragPos.x - 20, y: dragPos.y - 20 }}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          exit={{ scale: 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-2xl z-50 fixed top-0 left-0 pointer-events-none font-semibold text-sm"
+          style={{ 
+            x: dragPos.x - 24, 
+            y: dragPos.y - 24,
+            backgroundColor: getGroupColor(draggedGuest.group || 'other')
+          }}
+          initial={{ scale: 0.8, opacity: 0.8 }}
+          animate={{ scale: 1.1, opacity: 1 }}
+          exit={{ scale: 0.8, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
         >
           {draggedGuest.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
         </motion.div>
       )}
       {tableSummary && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-xl w-96 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Resumen de {tableSummary.name}</h3>
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-[500px] max-h-[80vh] overflow-y-auto border-2 border-purple-200"
+          >
+            <h3 className="elegant-title text-3xl font-bold mb-6 text-purple-600 flex items-center gap-3">
+              <Heart className="text-rose-500" size={32} />
+              {tableSummary.name}
+            </h3>
 
-            <p><strong>Tipo:</strong> {tableSummary.type === 'round' ? 'Redonda' : 'Rectangular'}</p>
-            <p><strong>Capacidad:</strong> {tableSummary.capacity}</p>
-            <p><strong>Asientos ocupados:</strong> {tableSummary.seats.filter((_, idx) => guests.some(g => g.tableId === tableSummary.id && g.seatIndex === idx)).length}</p>
-            <p><strong>Asientos libres:</strong> {tableSummary.capacity - tableSummary.seats.filter((_, idx) => guests.some(g => g.tableId === tableSummary.id && g.seatIndex === idx)).length}</p>
+            <div className="space-y-4 mb-6">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border-2 border-purple-200">
+                  <p className="text-sm text-gray-600 mb-1">Tipo</p>
+                  <p className="text-lg font-bold text-purple-600">{tableSummary.type === 'round' ? '● Redonda' : '▭ Rectangular'}</p>
+                </div>
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 rounded-xl border-2 border-blue-200">
+                  <p className="text-sm text-gray-600 mb-1">Capacidad Total</p>
+                  <p className="text-lg font-bold text-blue-600">{tableSummary.capacity} asientos</p>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-200">
+                  <p className="text-sm text-gray-600 mb-1">Ocupados</p>
+                  <p className="text-lg font-bold text-green-600">{tableSummary.seats.filter((_, idx) => guests.some(g => g.tableId === tableSummary.id && g.seatIndex === idx)).length}</p>
+                </div>
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
+                  <p className="text-sm text-gray-600 mb-1">Libres</p>
+                  <p className="text-lg font-bold text-amber-600">{tableSummary.capacity - tableSummary.seats.filter((_, idx) => guests.some(g => g.tableId === tableSummary.id && g.seatIndex === idx)).length}</p>
+                </div>
+              </div>
+            </div>
 
-            <h4 className="mt-4 font-semibold">Invitados asignados:</h4>
-            <ul className="list-disc list-inside">
-              {guests
-                .filter(g => g.tableId === tableSummary.id)
-                .map(g => (
-                  <li key={g.id}>
-                    {g.name} {g.seatIndex !== null ? `(Asiento ${g.seatIndex + 1})` : '(Sin asignar asiento)'}
-                  </li>
-              ))}
-            </ul>
+            <div className="mb-6">
+              <h4 className="elegant-title text-xl font-bold mb-4 text-gray-800 flex items-center gap-2">
+                <Users size={20} className="text-rose-500" />
+                Invitados Asignados
+              </h4>
+              {guests.filter(g => g.tableId === tableSummary.id).length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                  <Users size={48} className="mx-auto mb-3 text-gray-400" />
+                  <p className="text-gray-500">No hay invitados asignados a esta mesa</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {guests
+                    .filter(g => g.tableId === tableSummary.id)
+                    .map((g, index) => (
+                      <div key={g.id} className="flex items-center gap-3 bg-gradient-to-r from-rose-50 to-pink-50 p-3 rounded-xl border border-rose-200">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-400 to-pink-400 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                          {g.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">{g.name}</p>
+                          <p className="text-xs text-gray-500">{g.seatIndex !== null ? `Asiento ${g.seatIndex + 1}` : 'Sin asiento asignado'}</p>
+                        </div>
+                      </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="flex justify-end">
               <button
-                className="px-4 py-2 rounded bg-gray-300"
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-medium shadow-lg transition-all"
                 onClick={() => setTableSummary(null)}
               >
                 Cerrar
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
+      {/* Menú hamburguesa móvil */}
+      <AnimatePresence>
+        {showMobileMenu && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              onClick={() => setShowMobileMenu(false)}
+            />
+            
+            {/* Menú */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-80 bg-white shadow-2xl z-50 lg:hidden overflow-y-auto"
+            >
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900">Menú</h2>
+                  <button
+                    onClick={() => setShowMobileMenu(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
+
+                {/* Estadísticas */}
+                <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                    <Sparkles size={16} className="text-[#a8b5a1]" />
+                    Estadísticas
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <p className="text-gray-500">Invitados</p>
+                      <p className="text-lg font-bold text-gray-900">{guests.length}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <p className="text-gray-500">Asignados</p>
+                      <p className="text-lg font-bold text-[#7fa99b]">{assignedGuests.length}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <p className="text-gray-500">Sin asignar</p>
+                      <p className="text-lg font-bold text-[#c9b8a8]">{unassignedGuests.length}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <p className="text-gray-500">Mesas</p>
+                      <p className="text-lg font-bold text-gray-900">{tables.length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Opciones del menú */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowAddTable(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#a8b5a1] rounded-lg">
+                        <Plus size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Nueva Mesa</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowAddGuests(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#7fa99b] rounded-lg">
+                        <UserPlus size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Añadir Invitados</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowManageGroups(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#c9b8a8] rounded-lg">
+                        <Tag size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Gestionar Grupos</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      setShowImportGuests(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#8b9ca6] rounded-lg">
+                        <FileUp size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Importar Excel/CSV</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <div className="h-px bg-gray-200 my-4"></div>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      exportPDF();
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#c9b8a8] rounded-lg">
+                        <Download size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Exportar PDF</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      saveProgress();
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[#7fa99b] rounded-lg">
+                        <Save size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Guardar Progreso</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      resetAllData();
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-gray-400 rounded-lg">
+                        <RotateCcw size={20} className="text-white" />
+                      </div>
+                      <span className="font-medium text-gray-900">Resetear Todo</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar móvil de invitados */}
+      <AnimatePresence>
+        {showMobileSidebar && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              onClick={() => setShowMobileSidebar(false)}
+            />
+            
+            {/* Sidebar */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 bottom-0 w-80 bg-white shadow-2xl z-50 lg:hidden flex flex-col"
+            >
+              <div className="p-4 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Invitados</h2>
+                  <button
+                    onClick={() => setShowMobileSidebar(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
+                
+                {/* Búsqueda */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Buscar invitado..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2.5 rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:border-[#a8b5a1] focus:ring-1 focus:ring-[#a8b5a1]"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-3 p-0.5 hover:bg-gray-200 rounded-full transition-colors"
+                    >
+                      <X size={14} className="text-gray-400" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Lista de invitados */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {unassignedGuests.filter(g =>
+                    g.name.toLowerCase().includes(searchTerm.toLowerCase())
+                  ).map((guest, index) => {
+                    const groupColor = getGroupColor(guest.group || 'other');
+                    return (
+                    <motion.div
+                      key={guest.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="bg-gray-50 p-3 rounded-lg border border-gray-200"
+                      style={{
+                        borderLeftWidth: '3px',
+                        borderLeftColor: groupColor
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-shrink-0"
+                          style={{ backgroundColor: groupColor }}
+                        >
+                          {guest.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-gray-800 text-sm">{guest.name}</span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+                {unassignedGuests.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                  <div className="text-center text-gray-400 py-12">
+                    <Users size={48} className="mx-auto mb-4 opacity-50" />
+                    <p className="text-sm">No hay invitados sin asignar</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de gestión de grupos */}
+      {showManageGroups && (
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl p-8 shadow-2xl w-[600px] max-h-[80vh] overflow-hidden flex flex-col border border-gray-200"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+                <Tag className="text-[#c9b8a8]" size={28} />
+                Gestionar Grupos
+              </h3>
+              <button
+                onClick={() => setShowManageGroups(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Formulario para añadir grupo */}
+            <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Crear Nuevo Grupo</h4>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Nombre del grupo"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:border-[#a8b5a1] transition-colors text-sm"
+                    onKeyPress={(e) => e.key === 'Enter' && addGroup()}
+                  />
+                </div>
+                <div className="w-32">
+                  <div className="relative">
+                    <select
+                      value={newGroupColor}
+                      onChange={(e) => setNewGroupColor(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg p-2.5 focus:border-[#a8b5a1] transition-colors text-sm appearance-none cursor-pointer"
+                      style={{ paddingLeft: '36px' }}
+                    >
+                      {AVAILABLE_COLORS.map(color => (
+                        <option key={color} value={color}>
+                          Color
+                        </option>
+                      ))}
+                    </select>
+                    <div 
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-sm pointer-events-none"
+                      style={{ backgroundColor: newGroupColor }}
+                    ></div>
+                  </div>
+                </div>
+                <button
+                  onClick={addGroup}
+                  className="bg-[#a8b5a1] hover:bg-[#8b9e8a] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow-md flex items-center gap-2 text-sm font-medium transition-all"
+                >
+                  <Plus size={16} />
+                  <span>Añadir</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de grupos */}
+            <div className="flex-1 overflow-y-auto">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Grupos Existentes ({groups.length})</h4>
+              <div className="space-y-2">
+                {groups.map((group) => {
+                  const guestsCount = guests.filter(g => g.group === group.id).length;
+                  return (
+                    <motion.div
+                      key={group.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <div 
+                          className="w-8 h-8 rounded-full shadow-sm"
+                          style={{ backgroundColor: group.color }}
+                        ></div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800 text-sm">{group.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {guestsCount} invitado{guestsCount !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteGroup(group.id)}
+                        className="p-2 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Eliminar grupo"
+                      >
+                        <Trash2 size={16} className="text-red-500" />
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowManageGroups(false)}
+                className="w-full px-5 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 font-medium transition-colors text-gray-700"
+              >
+                Cerrar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Modal importar invitados desde Excel/CSV */}
         {showImportGuests && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 shadow-xl w-96">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FileUp size={20} />
+          <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 animate-fadeIn">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="glass-card bg-white rounded-2xl p-8 shadow-2xl w-[500px] border-2 border-purple-200"
+            >
+              <h3 className="elegant-title text-2xl font-bold mb-6 text-purple-600 flex items-center gap-2">
+                <FileUp className="bg-purple-100 rounded-full p-1" size={28} />
                 Importar Invitados
               </h3>
               
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 mb-4">
                   Selecciona un archivo Excel (.xlsx, .xls) o CSV con una columna de nombres.
                 </p>
                 
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                <div className="border-2 border-dashed border-purple-300 rounded-2xl p-6 text-center bg-purple-50/50 hover:bg-purple-50 transition-colors">
                   <input
                     type="file"
                     accept=".xlsx,.xls,.csv"
@@ -1045,13 +1891,12 @@ const WeddingSeatingApp = () => {
                     htmlFor="file-input"
                     className="cursor-pointer block"
                   >
-                    <FileUp className="mx-auto mb-2 text-gray-400" size={32} />
-                    <span className="text-sm text-gray-600">
+                    <FileUp className="mx-auto mb-3 text-purple-400" size={40} />
+                    <span className="text-base font-medium text-gray-700 block mb-1">
                       {importFile ? importFile.name : 'Haz clic para seleccionar archivo'}
                     </span>
-                    <br />
                     <span className="text-xs text-gray-500">
-                      Formatos soportados: .xlsx, .xls, .csv
+                      Formatos: .xlsx, .xls, .csv
                     </span>
                   </label>
                 </div>
@@ -1069,24 +1914,24 @@ const WeddingSeatingApp = () => {
                 </div>
               )}
 
-              <div className="flex justify-between gap-3">
+              <div className="flex gap-3">
                 <button 
                   onClick={() => {
                     setShowImportGuests(false);
                     setImportFile(null);
                     setImportStatus('');
                   }}
-                  className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 flex-1"
+                  className="flex-1 px-5 py-3 rounded-xl bg-gray-200 hover:bg-gray-300 font-medium transition-colors"
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={handleImport}
                   disabled={!importFile}
-                  className={`px-4 py-2 rounded text-white flex-1 ${
+                  className={`flex-1 px-5 py-3 rounded-xl text-white font-medium shadow-lg transition-all ${
                     importFile 
-                      ? 'bg-purple-500 hover:bg-purple-600' 
-                      : 'bg-purple-300 cursor-not-allowed'
+                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700' 
+                      : 'bg-gray-300 cursor-not-allowed'
                   }`}
                 >
                   Importar
@@ -1094,15 +1939,18 @@ const WeddingSeatingApp = () => {
               </div>
 
               {/* Información de formato */}
-              <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <h4 className="font-semibold text-sm mb-2 text-amber-800">Formato esperado:</h4>
-                <p className="text-xs text-amber-700">
-                  • <strong>Excel/CSV</strong> con una columna de nombres<br/>
-                  • <strong>Ejemplo:</strong> Columna A: "Ana García", "Carlos López", etc.<br/>
-                  • Se ignorarán las demás columnas
-                </p>
+              <div className="mt-6 p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border-2 border-amber-200">
+                <h4 className="font-bold text-sm mb-2 text-amber-800 flex items-center gap-2">
+                  <Sparkles size={16} />
+                  Formato esperado:
+                </h4>
+                <div className="text-xs text-amber-700 space-y-1">
+                  <p>• <strong>Excel/CSV</strong> con una columna de nombres</p>
+                  <p>• <strong>Ejemplo:</strong> Columna A: "Ana García", "Carlos López"</p>
+                  <p>• Se ignorarán las demás columnas</p>
+                </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
     </div>

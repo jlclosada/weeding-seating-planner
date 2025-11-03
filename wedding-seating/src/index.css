@@ -1,81 +1,309 @@
+/* ===== Importar fuentes modernas ===== */
+@import url('https://fonts.googleapis.com/css2?family=Questrial&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ===== Tipografía principal ===== */
-body {
-  @apply bg-gradient-to-br from-[#FDF6F0] to-[#FAE1DD] text-[#2F2E41] font-[Inter];
+* {
+  font-family: 'Questrial', 'Inter', -apple-system, sans-serif;
 }
 
-/* ===== Animaciones suaves ===== */
+body {
+  @apply bg-gradient-to-br from-slate-50 via-stone-50 to-neutral-50 text-gray-900;
+  font-family: 'Questrial', 'Inter', -apple-system, sans-serif;
+  overflow-x: hidden;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Questrial', 'Inter', -apple-system, sans-serif;
+}
+
+button, input, textarea, select {
+  font-family: 'Questrial', 'Inter', -apple-system, sans-serif;
+}
+
+/* ===== Variables CSS personalizadas - Paleta Elegante ===== */
+:root {
+  --elegant-sage: #a8b5a1;
+  --elegant-taupe: #c9b8a8;
+  --elegant-slate: #8b9ca6;
+  --elegant-cream: #f5f1e8;
+  --elegant-mauve: #b8a5b0;
+  --elegant-teal: #7fa99b;
+  --elegant-sand: #d4c4b0;
+}
+
+/* ===== Animaciones avanzadas ===== */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.4s ease-out;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-/* ===== Scrollbar elegante ===== */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.4s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ===== Scrollbar elegante con temática de boda ===== */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #fce7f3, #fef3c7);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #E2BFD9, #F4D160);
-  border-radius: 8px;
+  background: linear-gradient(180deg, #a8b5a1, #7fa99b);
+  border-radius: 10px;
+  border: 2px solid #f5f1e8;
+  transition: background 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #E2BFD9, #F1C232);
+  background: linear-gradient(180deg, #8b9ca6, #7fa99b);
 }
 
-/* ===== Estilo de inputs y modales ===== */
+/* ===== Inputs y modales con estilo de boda ===== */
 input,
 textarea,
 select {
-  @apply focus:ring-2 focus:ring-[#F4D160] focus:outline-none;
+  @apply focus:ring-2 focus:ring-[#a8b5a1] focus:ring-offset-2 focus:outline-none transition-all duration-200;
+  border: 1.5px solid #e5e5e5;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #a8b5a1;
+  box-shadow: 0 0 0 3px rgba(168, 181, 161, 0.1);
 }
 
 button {
-  transition: all 0.2s ease-in-out;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
-/* ===== Fuente secundaria para títulos elegantes ===== */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&display=swap');
+button:active {
+  transform: scale(0.96);
+}
 
-/* ===== Mejoras para las mesas dinámicas ===== */
+/* Efecto shimmer en botones */
+button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+button:hover::before {
+  left: 100%;
+}
+
+/* ===== Estilos para mesas con temática romántica ===== */
 .table-container {
-  transition: all 0.3s ease-in-out;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
-/* ===== Mejor legibilidad para nombres en mesas ===== */
+.table-container::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, #a8b5a1, #7fa99b, #8b9ca6);
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: -1;
+}
+
+.table-container:hover::before {
+  opacity: 0.15;
+}
+
+/* ===== Nombres en mesas con mejor contraste ===== */
 .table-guest-name {
-  text-shadow: 0.5px 0.5px 1px rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
   font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-/* ===== Asegurar que el PDF exporte correctamente ===== */
+/* ===== Tarjetas con efecto glassmorphism ===== */
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(244, 63, 94, 0.1);
+}
+
+/* ===== Decoraciones florales ===== */
+.floral-decoration {
+  position: relative;
+}
+
+.floral-decoration::after {
+  content: '✿';
+  position: absolute;
+  font-size: 1.5rem;
+  color: #f43f5e;
+  opacity: 0.2;
+  animation: pulse 3s ease-in-out infinite;
+}
+
+/* ===== Asegurar PDF export ===== */
 @media print {
   .table-container {
     break-inside: avoid;
   }
+  
+  body {
+    background: white !important;
+  }
 }
 
-/* ===== Smooth scaling para mesas ===== */
+/* ===== Efectos hover mejorados ===== */
 .table-scale {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .table-scale:hover {
-  transform: scale(1.05);
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 20px 40px rgba(168, 181, 161, 0.12);
+}
+
+/* ===== Panel lateral con gradiente ===== */
+.sidebar-gradient {
+  background: linear-gradient(180deg, #6b7c7a, #8b9ca6);
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-gradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 10 L35 25 L50 25 L37.5 35 L42.5 50 L30 40 L17.5 50 L22.5 35 L10 25 L25 25 Z' fill='%23ffffff' fill-opacity='0.03'/%3E%3C/svg%3E");
+  opacity: 0.5;
+}
+
+/* ===== Badges y etiquetas ===== */
+.badge {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  background: linear-gradient(135deg, #a8b5a1, #7fa99b);
+  color: white;
+  box-shadow: 0 2px 8px rgba(168, 181, 161, 0.3);
+}
+
+/* ===== Tooltips mejorados ===== */
+.tooltip {
+  @apply absolute bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  transform: translateY(-5px);
+  z-index: 1000;
+}
+
+.tooltip-trigger:hover .tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===== Modal overlay elegante ===== */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ===== Utilidades de texto ===== */
+.text-balance {
+  text-wrap: balance;
+}
+
+.tracking-custom {
+  letter-spacing: -0.01em;
 }
