@@ -3528,24 +3528,23 @@ const WeddingSeatingApp = () => {
                     onKeyPress={(e) => e.key === 'Enter' && addGroup()}
                   />
                 </div>
-                <div className="w-32">
-                  <div className="relative">
-                    <select
-                      value={newGroupColor}
-                      onChange={(e) => setNewGroupColor(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg p-2.5 focus:border-[#a8b5a1] transition-colors text-sm appearance-none cursor-pointer"
-                      style={{ paddingLeft: '36px' }}
-                    >
-                      {AVAILABLE_COLORS.map(color => (
-                        <option key={color} value={color}>
-                          Color
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-sm pointer-events-none"
-                      style={{ backgroundColor: newGroupColor }}
-                    ></div>
+                <div className="flex-shrink-0">
+                  <label className="block text-xs text-gray-600 mb-2">Color</label>
+                  <div className="flex gap-2 flex-wrap max-w-[200px]">
+                    {AVAILABLE_COLORS.map(color => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewGroupColor(color)}
+                        className={`w-8 h-8 rounded-full transition-all hover:scale-110 ${
+                          newGroupColor === color 
+                            ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' 
+                            : 'hover:ring-2 hover:ring-offset-1 hover:ring-gray-300'
+                        }`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
                   </div>
                 </div>
                 <button
