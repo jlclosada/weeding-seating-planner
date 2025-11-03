@@ -1477,12 +1477,31 @@ const WeddingSeatingApp = () => {
     if (confirm('¿Estás seguro de que quieres eliminar todos los datos?')) {
       localStorage.removeItem('wedding-tables');
       localStorage.removeItem('wedding-guests');
+      localStorage.removeItem('wedding-groups');
       setTables([]);
       setGuests([]);
+      setGroups(DEFAULT_GROUPS);
       toast.success('Datos reseteados correctamente', {
         icon: '🔄',
         style: {
           borderRadius: '12px',
+        },
+      });
+    }
+  };
+
+  // Borrar solo invitados (mantiene mesas)
+  const clearAllGuests = () => {
+    if (confirm(`¿Estás seguro de que quieres eliminar TODOS los invitados (${guests.length})?\n\nEsta acción no se puede deshacer.`)) {
+      setGuests([]);
+      localStorage.setItem('wedding-guests', JSON.stringify([]));
+      toast.success('Todos los invitados han sido eliminados', {
+        icon: '🗑️',
+        duration: 4000,
+        style: {
+          borderRadius: '12px',
+          background: '#ef4444',
+          color: '#fff',
         },
       });
     }
@@ -2296,6 +2315,24 @@ const WeddingSeatingApp = () => {
                           <div>
                             <p className="text-sm font-medium text-gray-900">Dashboard Avanzado</p>
                             <p className="text-xs text-gray-500">Análisis detallado</p>
+                          </div>
+                        </button>
+                        
+                        {/* Divider */}
+                        <div className="border-t-2 border-gray-200 my-1"></div>
+                        
+                        {/* Borrar todos los invitados */}
+                        <button
+                          onClick={() => {
+                            clearAllGuests();
+                            setShowToolsMenu(false);
+                          }}
+                          className="w-full px-4 py-3 hover:bg-red-50 flex items-center gap-3 text-left transition-colors border-t border-gray-100"
+                        >
+                          <UserX size={18} className="text-red-600" />
+                          <div>
+                            <p className="text-sm font-medium text-red-900">Borrar Invitados</p>
+                            <p className="text-xs text-red-600">Eliminar todos ({guests.length})</p>
                           </div>
                         </button>
                       </div>
@@ -3250,6 +3287,25 @@ const WeddingSeatingApp = () => {
                   </div>
 
                   <div className="h-px bg-gray-200 my-4"></div>
+
+                  <button
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      clearAllGuests();
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-red-500 rounded-lg">
+                        <UserX size={20} className="text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <span className="font-medium text-red-900">Borrar Invitados</span>
+                        <p className="text-xs text-red-600">Eliminar todos ({guests.length})</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} className="text-red-400" />
+                  </button>
 
                   <button
                     onClick={() => {
