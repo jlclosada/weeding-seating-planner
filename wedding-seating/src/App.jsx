@@ -475,66 +475,96 @@ const WeddingSeatingApp = () => {
 
   // Manejo de drag táctil para mesas con long-press
   const handleTouchStartTable = (e, tableId) => {
+    e.stopPropagation(); // Prevenir que el canvas también reciba el evento
     const touch = e.touches[0];
-    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    const table = tables.find(t => t.id === tableId);
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    const offsetX = startX - table.x;
+    const offsetY = startY - table.y;
+    let hasMoved = false;
+    let isDragging = false;
     
     setLongPressActive(true);
     
-    // Long press timer (500ms)
-    longPressTimer.current = setTimeout(() => {
+    // Timer corto para iniciar drag (300ms)
+    const dragTimer = setTimeout(() => {
       setLongPressActive(false);
-      setIsDraggingTable(true);
+      isDragging = true;
+      if (navigator.vibrate) navigator.vibrate(30);
       
-      // Haptic feedback en dispositivos compatibles
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-      const table = tables.find(t => t.id === tableId);
-      const offsetX = touch.clientX - table.x;
-      const offsetY = touch.clientY - table.y;
-
       const handleTouchMove = (ev) => {
+        if (!isDragging) return;
         ev.preventDefault();
+        ev.stopPropagation();
         const touch = ev.touches[0];
-        const newX = touch.clientX - offsetX + canvasRef.current.scrollLeft;
-        const newY = touch.clientY - offsetY + canvasRef.current.scrollTop;
+        const newX = touch.clientX - offsetX;
+        const newY = touch.clientY - offsetY;
         setTables(prev => prev.map(t => t.id === tableId ? { ...t, x: newX, y: newY } : t));
       };
 
-      const handleTouchEnd = () => {
+      const handleTouchEnd = (ev) => {
+        ev.stopPropagation();
+        isDragging = false;
         setIsDraggingTable(false);
         document.removeEventListener('touchmove', handleTouchMove);
         document.removeEventListener('touchend', handleTouchEnd);
       };
 
+      setIsDraggingTable(true);
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
       document.addEventListener('touchend', handleTouchEnd);
-    }, 400);
-
-    // Limpiar timer si se mueve o levanta antes
-    const clearTimer = () => {
-      setLongPressActive(false);
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
+    }, 300);
+    
+    // Timer largo para menú contextual (800ms)
+    const menuTimer = setTimeout(() => {
+      if (!hasMoved && !isDragging) {
+        clearTimeout(dragTimer);
+        setLongPressActive(false);
+        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+        
+        // Abrir menú contextual
+        const rect = e.target.getBoundingClientRect();
+        const menuEvent = {
+          preventDefault: () => {},
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2
+        };
+        // Simular el handleContextMenu del componente
+        e.target.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true,
+          clientX: menuEvent.clientX,
+          clientY: menuEvent.clientY
+        }));
       }
-    };
+    }, 800);
 
     const handleMove = (ev) => {
       const touch = ev.touches[0];
-      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
-      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+      const deltaX = Math.abs(touch.clientX - startX);
+      const deltaY = Math.abs(touch.clientY - startY);
       
-      // Si se mueve más de 10px, cancelar long press
       if (deltaX > 10 || deltaY > 10) {
-        clearTimer();
+        hasMoved = true;
+        if (!isDragging) {
+          clearTimeout(dragTimer);
+          clearTimeout(menuTimer);
+          setLongPressActive(false);
+        }
         document.removeEventListener('touchmove', handleMove);
-        document.removeEventListener('touchend', clearTimer);
       }
     };
 
+    const clearTimers = () => {
+      clearTimeout(dragTimer);
+      clearTimeout(menuTimer);
+      setLongPressActive(false);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', clearTimers);
+    };
+
     document.addEventListener('touchmove', handleMove, { passive: true });
-    document.addEventListener('touchend', clearTimer, { once: true });
+    document.addEventListener('touchend', clearTimers, { once: true });
   };
 
   const exportPDF = async () => {
@@ -1104,16 +1134,24 @@ const WeddingSeatingApp = () => {
                   if (!guest) return;
                   e.stopPropagation();
                   setLongPressActive(true);
+                  const touch = e.touches[0];
                   
                   longPressTimer.current = setTimeout(() => {
                     setLongPressActive(false);
-                    if (navigator.vibrate) navigator.vibrate(50);
+                    if (navigator.vibrate) navigator.vibrate(30);
                     setDraggedGuest(guest);
                     setIsDragging(true);
-                    const touch = e.touches[0];
                     setDragPos({ x: touch.clientX, y: touch.clientY });
                     assignGuestToSeat(guest.id, null, null);
-                  }, 500);
+                  }, 300);
+                }}
+                onTouchMove={(e) => {
+                  // Si se mueve antes de activar, cancelar
+                  if (longPressTimer.current) {
+                    clearTimeout(longPressTimer.current);
+                    longPressTimer.current = null;
+                    setLongPressActive(false);
+                  }
                 }}
                 onTouchEnd={() => {
                   setLongPressActive(false);
@@ -1293,11 +1331,12 @@ const WeddingSeatingApp = () => {
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40 overflow-auto touch-pan-x touch-pan-y"
+          className="relative p-4 md:p-8 lg:p-12 mt-16 md:mt-20 lg:mt-40 overflow-auto"
           style={{ 
             minWidth: '2000px', 
             minHeight: '1500px',
-            WebkitOverflowScrolling: 'touch'
+            WebkitOverflowScrolling: 'touch',
+            touchAction: isDraggingTable || isDragging ? 'none' : 'pan-x pan-y'
           }}
           onDragOver={handleDragOver}
           onDrop={(e) => {
@@ -1935,14 +1974,23 @@ const WeddingSeatingApp = () => {
                       onTouchStart={(e) => {
                         e.stopPropagation();
                         setLongPressActive(true);
+                        const touch = e.touches[0];
+                        
                         longPressTimer.current = setTimeout(() => {
                           setLongPressActive(false);
-                          if (navigator.vibrate) navigator.vibrate(50);
+                          if (navigator.vibrate) navigator.vibrate(30);
                           setDraggedGuest(guest);
                           setIsDragging(true);
-                          const touch = e.touches[0];
                           setDragPos({ x: touch.clientX, y: touch.clientY });
-                        }, 500);
+                        }, 300);
+                      }}
+                      onTouchMove={(e) => {
+                        // Si se mueve antes de activar, cancelar
+                        if (longPressTimer.current) {
+                          clearTimeout(longPressTimer.current);
+                          longPressTimer.current = null;
+                          setLongPressActive(false);
+                        }
                       }}
                       onTouchEnd={() => {
                         setLongPressActive(false);
