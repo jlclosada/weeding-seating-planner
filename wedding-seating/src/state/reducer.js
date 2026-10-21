@@ -49,7 +49,12 @@ function docReducer(doc, action) {
     case 'guest/update':
       return {
         ...doc,
-        guests: doc.guests.map((g) => (g.id === action.id ? { ...g, ...action.patch, name: (action.patch.name ?? g.name).trim() || g.name } : g)),
+        guests: doc.guests.map((g) => {
+          if (g.id !== action.id) return g;
+          const next = { ...g, ...action.patch, name: (action.patch.name ?? g.name).trim() || g.name };
+          // Quien no asiste no ocupa silla.
+          return next.rsvp === 'no' ? unseat(next) : next;
+        }),
       };
 
     case 'guests/delete': {
@@ -115,6 +120,16 @@ function docReducer(doc, action) {
       const kept = doc.avoid.filter(([a, b]) => a !== action.guestId && b !== action.guestId);
       return { ...doc, avoid: [...kept, ...[...others].map((o) => [action.guestId, o])] };
     }
+
+    // Listas de organización: presupuesto, tareas y cronograma.
+    case 'list/add':
+      return { ...doc, [action.key]: [...doc[action.key], action.item] };
+    case 'list/update':
+      return { ...doc, [action.key]: doc[action.key].map((x) => (x.id === action.id ? { ...x, ...action.patch } : x)) };
+    case 'list/remove':
+      return { ...doc, [action.key]: doc[action.key].filter((x) => x.id !== action.id) };
+    case 'budget/cap':
+      return action.value === doc.budgetCap ? doc : { ...doc, budgetCap: action.value };
 
     case 'doc/replace':
       return normalizeDoc(action.doc);

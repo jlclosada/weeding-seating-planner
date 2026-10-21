@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, PieChart, Users } from 'lucide-react';
+import { ClipboardList, LayoutGrid, PieChart, Users } from 'lucide-react';
 import { StoreProvider, useStore } from './state/store';
 import { ToastProvider, useToast } from './components/Toasts';
 import TopBar from './components/TopBar';
@@ -9,6 +9,7 @@ import Canvas from './components/Canvas';
 import Inspector from './components/Inspector';
 import GuestsView from './components/GuestsView';
 import SummaryView from './components/SummaryView';
+import PlanningView from './components/PlanningView';
 import MobileSheet from './components/MobileSheet';
 import { AutoSeatPill, EmptyState, PickBanner } from './components/PlanOverlays';
 import { Avatar } from './components/ui';
@@ -17,12 +18,12 @@ import { ConfirmDialog, EventDialog, TemplatesDialog } from './components/dialog
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { analyze, autoAssign } from './lib/autoAssign';
 import { findFreeSpot, layoutTables } from './lib/geometry';
-import { exportBackup, exportExcel, exportPDF, readBackup } from './lib/exporters';
+import { exportBackup, exportExcel, exportPDF, exportPlaceCards, readBackup } from './lib/exporters';
 import { buildDemoDoc } from './lib/demo';
 import { normalize, plural } from './lib/text';
 import { PALETTE, createEmptyDoc, makeGuest, makeTable, uid } from './state/model';
 
-const VIEW_ICONS = { plan: LayoutGrid, guests: Users, summary: PieChart };
+const VIEW_ICONS = { plan: LayoutGrid, guests: Users, summary: PieChart, planning: ClipboardList };
 const isTyping = (el) => el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
 function nextTableName(tables) {
@@ -40,6 +41,7 @@ function Planner() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const [view, setView] = useState('plan');
+  const [planningSection, setPlanningSection] = useState('budget');
   const [selectedTableId, setSelectedTableId] = useState(null);
   const [pickedGuestId, setPickedGuestId] = useState(null);
   const [query, setQuery] = useState('');
@@ -66,7 +68,7 @@ function Planner() {
 
   const selectedTable = tableById.get(selectedTableId) ?? null;
   const pickedGuest = guestById.get(pickedGuestId) ?? null;
-  const unseatedCount = doc.guests.filter((g) => g.tableId == null).length;
+  const unseatedCount = doc.guests.filter((g) => g.tableId == null && g.rsvp !== 'no').length;
 
   const withUndo = useCallback((message) => toast.show(message, { action: { label: 'Deshacer', onClick: undo } }), [toast, undo]);
   const openDialog = (type, payload) => setDialog({ type, payload });
@@ -168,7 +170,7 @@ function Planner() {
 
   const autoSeat = useCallback(() => {
     const current = docRef.current;
-    if (!current.guests.some((g) => g.tableId == null)) return toast.show('Todos tus invitados ya tienen sitio');
+    if (!current.guests.some((g) => g.tableId == null && g.rsvp !== 'no')) return toast.show('Todos tus invitados ya tienen sitio');
     const r = autoAssign(current, { near: canvas.current?.viewCenter() });
     dispatch({ type: 'seats/apply', guests: r.guests, tables: r.tables, label: 'Sentar automáticamente' });
     setView('plan');
@@ -247,6 +249,18 @@ function Planner() {
       withUndo(`${plural(guests.length, 'invitado añadido', 'invitados añadidos')}`);
     },
     [dispatch, withUndo],
+  );
+
+  const createGroup = useCallback(
+    (name) => {
+      const used = new Set(docRef.current.groups.map((g) => g.color));
+      const color = PALETTE.find((c) => !used.has(c)) ?? PALETTE[docRef.current.groups.length % PALETTE.length];
+      const id = uid();
+      dispatch({ type: 'group/add', id, name, color, label: 'Crear grupo' });
+      toast.show(`Grupo «${name.trim()}» creado`);
+      return id;
+    },
+    [dispatch, toast],
   );
 
   const importGuests = useCallback(
@@ -329,9 +343,15 @@ function Planner() {
     autoSeat,
     clearAllSeats,
     editEvent: () => openDialog('event'),
+    openGroups: () => openDialog('groups'),
+    openPlanning: (section) => {
+      setPlanningSection(section);
+      setView('planning');
+    },
     openTemplates: () => openDialog('templates'),
     exportPDF: () => runExport(exportPDF, 'PDF'),
     exportExcel: () => runExport(exportExcel, 'Excel'),
+    exportCards: () => runExport(exportPlaceCards, 'PDF de tarjetas'),
     exportBackup: () => exportBackup(doc),
     importBackup: () => backupInput.current?.click(),
     loadDemo: () => confirmThen('¿Cargar la boda de ejemplo?', 'Sustituye tu plano actual por uno de ejemplo. Podrás deshacerlo, pero guarda antes una copia si quieres conservarlo.', 'Cargar ejemplo', () => replaceDoc(buildDemoDoc(), 'Boda de ejemplo cargada')),
@@ -443,7 +463,7 @@ function Planner() {
         </div>
       )}
       {!isDesktop && (
-        <MobileSheet doc={doc} pickedGuestId={pickedGuestId} onPick={onPick} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onAutoSeat={autoSeat} query={query} setQuery={setQuery}>
+        <MobileSheet doc={doc} pickedGuestId={pickedGuestId} onPick={onPick} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onGroups={actions.openGroups} onAutoSeat={autoSeat} query={query} setQuery={setQuery}>
           {selectedTable && !pickedGuest ? inspector : null}
         </MobileSheet>
       )}
@@ -478,10 +498,20 @@ function Planner() {
             plan
           ))}
         {view === 'guests' && (
-          <GuestsView doc={doc} dispatch={dispatch} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onImport={() => openDialog('import')} onDelete={deleteGuest} onSeatAt={seatAtTable} />
+          <GuestsView doc={doc} dispatch={dispatch} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onImport={() => openDialog('import')} onGroups={actions.openGroups} onDelete={deleteGuest} onSeatAt={seatAtTable} />
+        )}
+        {view === 'planning' && (
+          <PlanningView
+            doc={doc}
+            dispatch={dispatch}
+            toast={toast}
+            section={planningSection}
+            setSection={setPlanningSection}
+            onRestoreVersion={(v) => openDialog('confirm', { title: `¿Restaurar «${v.name}»?`, body: 'Tu plano actual se sustituye por esta versión. Puedes deshacerlo.', confirmLabel: 'Restaurar', onConfirm: () => replaceDoc(v.doc, `«${v.name}» restaurada`) })}
+          />
         )}
         {view === 'summary' && (
-          <SummaryView doc={doc} onOpenTable={focusTable} onAutoSeat={autoSeat} onExportPDF={actions.exportPDF} onExportExcel={actions.exportExcel} onEditGuest={editGuest} />
+          <SummaryView doc={doc} onOpenPlanning={actions.openPlanning} onOpenTable={focusTable} onAutoSeat={autoSeat} onExportPDF={actions.exportPDF} onExportExcel={actions.exportExcel} onEditGuest={editGuest} />
         )}
       </main>
 
@@ -510,7 +540,7 @@ function Planner() {
 
       <input ref={backupInput} type="file" accept="application/json,.json" className="hidden" onChange={onBackupFile} />
 
-      <AddGuestsDialog open={dialog?.type === 'addGuests'} onClose={closeDialog} doc={doc} onSubmit={addGuests} />
+      <AddGuestsDialog open={dialog?.type === 'addGuests'} onClose={closeDialog} doc={doc} onSubmit={addGuests} onCreateGroup={createGroup} />
       <ImportDialog open={dialog?.type === 'import'} onClose={closeDialog} doc={doc} onSubmit={importGuests} />
       <GroupsDialog open={dialog?.type === 'groups'} onClose={closeDialog} doc={doc} dispatch={dispatch} />
       <TemplatesDialog open={dialog?.type === 'templates'} onClose={closeDialog} hasTables={doc.tables.length > 0} onApply={applyTemplate} />
@@ -524,6 +554,7 @@ function Planner() {
           onSave={(patch, avoid) => saveGuest(editingGuest, patch, avoid)}
           onDelete={deleteGuest}
           onUnseat={unseat}
+          onCreateGroup={createGroup}
         />
       )}
       {dialog?.type === 'confirm' && <ConfirmDialog open {...dialog.payload} onClose={closeDialog} />}

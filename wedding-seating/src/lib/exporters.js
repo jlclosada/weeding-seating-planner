@@ -236,6 +236,61 @@ export async function exportPDF(doc) {
   pdf.save(`${baseName(doc)}.pdf`);
 }
 
+/** Tarjetas de sitio: 8 por A4 (2 × 4), con marcas de corte suaves. */
+export async function buildPlaceCards(doc) {
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+  const tableById = new Map(doc.tables.map((t) => [t.id, t]));
+  const order = new Map(doc.tables.map((t, i) => [t.id, i]));
+  const guests = doc.guests.filter((g) => g.tableId != null && tableById.has(g.tableId)).sort((a, b) => order.get(a.tableId) - order.get(b.tableId) || a.seat - b.seat);
+  const W = 210;
+  const H = 297;
+  const cw = 95;
+  const ch = 66;
+  const mx = (W - cw * 2) / 2;
+  const my = (H - ch * 4) / 2;
+  guests.forEach((g, i) => {
+    const slot = i % 8;
+    if (slot === 0) {
+      if (i) pdf.addPage();
+      pdf.setFillColor(...PAPER);
+      pdf.rect(0, 0, W, H, 'F');
+      pdf.setDrawColor(...LINE);
+      pdf.setLineWidth(0.15);
+      pdf.setLineDashPattern([1, 1.5], 0);
+      for (let c = 0; c <= 2; c++) pdf.line(mx + c * cw, my - 4, mx + c * cw, my + ch * 4 + 4);
+      for (let r = 0; r <= 4; r++) pdf.line(mx - 4, my + r * ch, mx + cw * 2 + 4, my + r * ch);
+      pdf.setLineDashPattern([], 0);
+    }
+    const x = mx + (slot % 2) * cw;
+    const y = my + Math.floor(slot / 2) * ch;
+    pdf.setDrawColor(...GOLD);
+    pdf.setLineWidth(0.25);
+    pdf.line(x + cw / 2 - 8, y + 18, x + cw / 2 + 8, y + 18);
+    pdf.setFont('times', 'italic');
+    pdf.setTextColor(...INK);
+    let size = 26;
+    pdf.setFontSize(size);
+    while (pdf.getTextWidth(g.name) > cw - 16 && size > 14) pdf.setFontSize(--size);
+    pdf.text(g.name, x + cw / 2, y + ch / 2 + 3, { align: 'center' });
+    const label = tableById.get(g.tableId).name.toUpperCase();
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...GOLD);
+    pdf.text(label, x + cw / 2 - (pdf.getTextWidth(label) + 1 * (label.length - 1)) / 2, y + ch - 16, { charSpace: 1 });
+  });
+  if (!guests.length) {
+    pdf.setFont('times', 'italic');
+    pdf.setFontSize(18);
+    pdf.text('Todavía no hay invitados sentados', W / 2, H / 2, { align: 'center' });
+  }
+  return pdf;
+}
+
+export async function exportPlaceCards(doc) {
+  (await buildPlaceCards(doc)).save(`tarjetas-${slug(doc.event.title)}.pdf`);
+}
+
 export async function exportExcel(doc) {
   const XLSX = await import('xlsx');
   const tableById = new Map(doc.tables.map((t) => [t.id, t]));
@@ -249,6 +304,7 @@ export async function exportExcel(doc) {
       Grupo: groupById.get(g.groupId)?.name ?? '',
       Mesa: tableById.get(g.tableId)?.name ?? 'Sin mesa',
       Asiento: g.seat != null ? g.seat + 1 : '',
+      Asistencia: { yes: 'Confirmado', no: 'No asiste', pending: 'Pendiente' }[g.rsvp] ?? 'Pendiente',
       Dieta: g.diet,
       Notas: g.note,
     }));

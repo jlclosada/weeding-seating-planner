@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
-import { ChevronUp, Search, UserPlus, Wand2 } from 'lucide-react';
+import { ChevronUp, Palette, Search, UserPlus, Wand2 } from 'lucide-react';
 import { Avatar } from './ui';
 import { GuestRow } from './GuestPanel';
 import { useGuestFilter } from '../hooks/useGuestFilter';
 
 /** Hoja inferior del plano en móvil: invitados sin mesa (o la mesa seleccionada). */
-export default function MobileSheet({ doc, pickedGuestId, onPick, onEdit, onAdd, onAutoSeat, query, setQuery, children }) {
+export default function MobileSheet({ doc, pickedGuestId, onPick, onEdit, onAdd, onGroups, onAutoSeat, query, setQuery, children }) {
   const [expanded, setExpanded] = useState(false);
   const groupColor = useMemo(() => new Map(doc.groups.map((g) => [g.id, g.color])), [doc.groups]);
   const { sections, tableName } = useGuestFilter(doc, { query, groupFilter: null, scope: 'unseated' });
-  const unseated = doc.guests.filter((g) => g.tableId == null);
+  const unseated = doc.guests.filter((g) => g.tableId == null && g.rsvp !== 'no');
 
   if (children) {
     return (
@@ -71,6 +71,9 @@ export default function MobileSheet({ doc, pickedGuestId, onPick, onEdit, onAdd,
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
               <input className="input h-10 bg-paper pl-9" placeholder="Buscar invitado…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar invitado" />
             </div>
+            <button className="icon-btn h-10 w-10" onClick={onGroups} aria-label="Grupos de invitados">
+              <Palette size={16} />
+            </button>
             <button className="icon-btn h-10 w-10" onClick={onAdd} aria-label="Añadir invitados">
               <UserPlus size={16} />
             </button>

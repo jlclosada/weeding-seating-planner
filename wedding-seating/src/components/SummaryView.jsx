@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { AlertTriangle, ArrowRight, FileSpreadsheet, FileText, Users, Utensils, Wand2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckSquare, Clock, FileSpreadsheet, FileText, Users, Utensils, Wallet, Wand2 } from 'lucide-react';
 import { analyze } from '../lib/autoAssign';
 import { plural } from '../lib/text';
 
@@ -22,12 +22,20 @@ function Bar({ value, max, color = 'var(--gold)' }) {
   );
 }
 
-export default function SummaryView({ doc, onOpenTable, onAutoSeat, onExportPDF, onExportExcel, onEditGuest }) {
+export default function SummaryView({ doc, onOpenPlanning, onOpenTable, onAutoSeat, onExportPDF, onExportExcel, onEditGuest }) {
   const { conflicts, scattered, empty, byTable } = useMemo(() => analyze(doc), [doc]);
   const seated = doc.guests.filter((g) => g.tableId != null).length;
+  const attending = doc.guests.filter((g) => g.rsvp !== 'no').length;
+  const confirmed = doc.guests.filter((g) => g.rsvp === 'yes').length;
+  const declined = doc.guests.length - attending;
+  const budgetTotal = doc.budget.reduce((s, b) => s + b.unit * (b.mode === 'guest' ? attending : b.mode === 'table' ? doc.tables.length : b.qty), 0);
+  const tasksDone = doc.tasks.filter((t) => t.done).length;
+  const nextTask = doc.tasks.filter((t) => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))[0];
+  const moments = [...doc.timeline].sort((a, b) => a.time.localeCompare(b.time));
+  const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   const capacity = doc.tables.reduce((s, t) => s + t.capacity, 0);
-  const unseated = doc.guests.length - seated;
-  const pct = doc.guests.length ? Math.round((seated / doc.guests.length) * 100) : 0;
+  const unseated = attending - seated;
+  const pct = attending ? Math.round((seated / attending) * 100) : 0;
 
   const diets = useMemo(() => {
     const m = new Map();
@@ -38,8 +46,8 @@ export default function SummaryView({ doc, onOpenTable, onAutoSeat, onExportPDF,
 
   const notices = [
     ...conflicts.map((c) => ({ key: `c-${c.a.id}-${c.b.id}`, tone: 'danger', text: `${c.a.name} y ${c.b.name} comparten ${c.table.name}`, action: () => onOpenTable(c.tableId), cta: 'Ver mesa' })),
-    ...(unseated && capacity >= doc.guests.length ? [{ key: 'u', tone: 'info', text: `${plural(unseated, 'invitado sigue', 'invitados siguen')} sin mesa`, action: onAutoSeat, cta: 'Sentar automáticamente' }] : []),
-    ...(capacity < doc.guests.length ? [{ key: 'cap', tone: 'danger', text: `Faltan ${doc.guests.length - capacity} asientos para todos los invitados`, action: onAutoSeat, cta: 'Crear mesas y sentar' }] : []),
+    ...(unseated && capacity >= attending ? [{ key: 'u', tone: 'info', text: `${plural(unseated, 'invitado sigue', 'invitados siguen')} sin mesa`, action: onAutoSeat, cta: 'Sentar automáticamente' }] : []),
+    ...(capacity < attending ? [{ key: 'cap', tone: 'danger', text: `Faltan ${attending - capacity} asientos para todos los invitados`, action: onAutoSeat, cta: 'Crear mesas y sentar' }] : []),
     ...scattered.map((s) => ({ key: `s-${s.group.id}`, tone: 'info', text: `«${s.group.name}» está repartido en ${s.tables} mesas` })),
     ...(empty.length ? [{ key: 'e', tone: 'info', text: `${plural(empty.length, 'mesa vacía', 'mesas vacías')}: ${empty.map((t) => t.name).join(', ')}` }] : []),
   ];
@@ -63,10 +71,33 @@ export default function SummaryView({ doc, onOpenTable, onAutoSeat, onExportPDF,
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi label="Invitados" value={doc.guests.length} sub={`${doc.groups.length} grupos`} />
-          <Kpi label="Sentados" value={`${pct}%`} sub={`${seated} de ${doc.guests.length}`} />
+          <Kpi label="Asisten" value={attending} sub={`${confirmed} confirmados${declined ? ` · ${declined} no vienen` : ''}`} />
+          <Kpi label="Sentados" value={`${pct}%`} sub={`${seated} de ${attending}`} />
           <Kpi label="Mesas" value={doc.tables.length} sub={`${capacity} asientos`} />
-          <Kpi label="Libres" value={Math.max(0, capacity - seated)} sub={capacity < doc.guests.length ? 'Faltan asientos' : 'Asientos sin ocupar'} />
+          <Kpi label="Libres" value={Math.max(0, capacity - seated)} sub={capacity < attending ? 'Faltan asientos' : 'Asientos sin ocupar'} />
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {[
+            { id: 'budget', icon: Wallet, label: 'Presupuesto', value: eur.format(budgetTotal), sub: doc.budgetCap ? (budgetTotal > doc.budgetCap ? `${eur.format(budgetTotal - doc.budgetCap)} por encima del máximo` : `${eur.format(doc.budgetCap - budgetTotal)} de margen`) : `${doc.budget.length} partidas` },
+            { id: 'tasks', icon: CheckSquare, label: 'Tareas', value: `${tasksDone} / ${doc.tasks.length}`, sub: nextTask ? `Siguiente: ${nextTask.title}` : 'Todo hecho' },
+            { id: 'timeline', icon: Clock, label: 'Cronograma', value: moments.length ? `${moments[0].time}` : '—', sub: moments.length ? `${moments.length} momentos · empieza con «${moments[0].title}»` : 'Añade los momentos del día' },
+          ].map((c) => {
+            const Icon = c.icon;
+            return (
+              <button key={c.id} onClick={() => onOpenPlanning(c.id)} className="group flex items-center gap-4 rounded-2xl border border-line bg-card px-5 py-4 text-left transition-colors hover:border-gold">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold">
+                  <Icon size={17} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="label">{c.label}</span>
+                  <span className="mt-1 block font-serif text-[24px] leading-none">{c.value}</span>
+                  <span className="mt-1 block truncate text-[12px] text-ink-3">{c.sub}</span>
+                </span>
+                <ArrowRight size={15} className="text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-gold" />
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[1.25fr_1fr]">

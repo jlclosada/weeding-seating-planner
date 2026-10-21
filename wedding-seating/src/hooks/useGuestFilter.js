@@ -6,7 +6,7 @@ export function useGuestFilter(doc, { query, groupFilter, scope }) {
     const q = normalize(query);
     const tableName = new Map(doc.tables.map((t) => [t.id, t.name]));
     const base = doc.guests.filter((g) => (groupFilter ? (g.groupId ?? '__none__') === groupFilter : true));
-    const visible = base.filter((g) => (q ? normalize(g.name).includes(q) : scope === 'all' || g.tableId == null));
+    const visible = base.filter((g) => (q ? normalize(g.name).includes(q) : scope === 'all' || (g.tableId == null && g.rsvp !== 'no')));
     const sections = [];
     const byGroup = new Map();
     for (const g of visible) {

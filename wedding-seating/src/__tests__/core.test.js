@@ -182,3 +182,34 @@ describe('ejemplo y avisos', () => {
     expect(normalizeDoc(JSON.parse(JSON.stringify(doc))).guests).toHaveLength(doc.guests.length);
   });
 });
+
+describe('organización y asistencia', () => {
+  it('los documentos antiguos reciben presupuesto, tareas y cronograma por defecto', () => {
+    const doc = normalizeDoc({ tables: [], guests: [makeGuest('Ana')], version: 2 });
+    expect(doc.budget.length).toBeGreaterThan(0);
+    expect(doc.tasks.length).toBeGreaterThan(0);
+    expect(doc.timeline.length).toBeGreaterThan(0);
+    expect(doc.guests[0].rsvp).toBe('pending');
+  });
+
+  it('las listas se editan con deshacer', () => {
+    let s = initHistory(createEmptyDoc());
+    const id = s.doc.tasks[0].id;
+    s = historyReducer(s, { type: 'list/update', key: 'tasks', id, patch: { done: true } });
+    expect(s.doc.tasks[0].done).toBe(true);
+    s = historyReducer(s, { type: 'list/remove', key: 'tasks', id });
+    expect(s.doc.tasks.find((t) => t.id === id)).toBeUndefined();
+    s = historyReducer(historyReducer(s, { type: 'history/undo' }), { type: 'history/undo' });
+    expect(s.doc.tasks[0]).toMatchObject({ id, done: false });
+  });
+
+  it('marcar «no asiste» libera su asiento y la autoasignación no lo sienta', () => {
+    const t = makeTable({ name: 'Mesa', capacity: 4 });
+    const g = { ...makeGuest('Ana'), tableId: t.id, seat: 0 };
+    const other = makeGuest('Bea', null, { rsvp: 'no' });
+    let s = initHistory(docWith({ tables: [t], guests: [g, other] }));
+    s = historyReducer(s, { type: 'guest/update', id: g.id, patch: { rsvp: 'no' } });
+    expect(s.doc.guests[0].tableId).toBeNull();
+    expect(autoAssign(s.doc).guests.every((x) => x.tableId == null)).toBe(true);
+  });
+});

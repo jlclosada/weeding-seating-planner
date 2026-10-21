@@ -1,24 +1,69 @@
 import { useMemo, useRef, useState } from 'react';
 import { FileSpreadsheet, Trash2, Upload, X } from 'lucide-react';
-import { Avatar, Dialog, Field } from '../ui';
+import { Avatar, Dialog, Field, Segmented } from '../ui';
 import { readGuestFile, splitDuplicates } from '../../lib/importGuests';
 import { normalize, plural } from '../../lib/text';
-import { PALETTE } from '../../state/model';
+import { PALETTE, RSVP } from '../../state/model';
 
-function GroupSelect({ id, groups, value, onChange }) {
+function GroupSelect({ id, groups, value, onChange, onCreate }) {
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const create = () => {
+    const v = name.trim();
+    if (!v) return;
+    onChange(onCreate(v));
+    setName('');
+    setCreating(false);
+  };
+  if (creating) {
+    return (
+      <div className="flex gap-2">
+        <input
+          id={id}
+          autoFocus
+          className="input"
+          placeholder="Nombre del grupo, p. ej. «Amigos del cole»"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              create();
+            }
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setCreating(false);
+            }
+          }}
+        />
+        <button type="button" className="btn btn-primary h-10" onClick={create} disabled={!name.trim()}>
+          Crear
+        </button>
+        <button type="button" className="icon-btn h-10 w-10" onClick={() => setCreating(false)} aria-label="Cancelar nuevo grupo">
+          <X size={15} />
+        </button>
+      </div>
+    );
+  }
   return (
-    <select id={id} className="input" value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+    <select
+      id={id}
+      className="input"
+      value={value ?? ''}
+      onChange={(e) => (e.target.value === '__new__' ? setCreating(true) : onChange(e.target.value || null))}
+    >
       <option value="">Sin grupo</option>
       {groups.map((g) => (
         <option key={g.id} value={g.id}>
           {g.name}
         </option>
       ))}
+      {onCreate && <option value="__new__">+ Nuevo grupo…</option>}
     </select>
   );
 }
 
-export function AddGuestsDialog({ open, onClose, doc, onSubmit }) {
+export function AddGuestsDialog({ open, onClose, doc, onSubmit, onCreateGroup }) {
   const [text, setText] = useState('');
   const [groupId, setGroupId] = useState(doc.groups[0]?.id ?? null);
   const [allowDupes, setAllowDupes] = useState(false);
@@ -66,7 +111,7 @@ export function AddGuestsDialog({ open, onClose, doc, onSubmit }) {
           />
         </Field>
         <Field label="Grupo" htmlFor="guest-group">
-          <GroupSelect id="guest-group" groups={doc.groups} value={groupId} onChange={setGroupId} />
+          <GroupSelect id="guest-group" groups={doc.groups} value={groupId} onChange={setGroupId} onCreate={onCreateGroup} />
         </Field>
         {duplicates.length > 0 && (
           <div className="rounded-[10px] border border-line bg-paper px-3.5 py-3 text-[12.5px] text-ink-2">
@@ -206,8 +251,8 @@ export function ImportDialog({ open, onClose, doc, onSubmit }) {
   );
 }
 
-export function EditGuestDialog({ guest, doc, onClose, onSave, onDelete, onUnseat }) {
-  const [draft, setDraft] = useState(() => ({ name: guest.name, groupId: guest.groupId, diet: guest.diet, note: guest.note }));
+export function EditGuestDialog({ guest, doc, onClose, onSave, onDelete, onUnseat, onCreateGroup }) {
+  const [draft, setDraft] = useState(() => ({ name: guest.name, groupId: guest.groupId, diet: guest.diet, note: guest.note, rsvp: guest.rsvp ?? 'pending' }));
   const [avoid, setAvoid] = useState(() => doc.avoid.filter((p) => p.includes(guest.id)).map(([a, b]) => (a === guest.id ? b : a)));
   const [search, setSearch] = useState('');
   const table = doc.tables.find((t) => t.id === guest.tableId);
@@ -254,9 +299,13 @@ export function EditGuestDialog({ guest, doc, onClose, onSave, onDelete, onUnsea
         <Field label="Nombre" htmlFor="edit-name">
           <input id="edit-name" data-autofocus className="input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
         </Field>
+        <Field label="Asistencia">
+          <Segmented label="Asistencia" value={draft.rsvp} onChange={(rsvp) => setDraft({ ...draft, rsvp })} options={Object.entries(RSVP).map(([value, label]) => ({ value, label }))} />
+          {draft.rsvp === 'no' && table && <p className="text-[12px] text-ink-3">Al guardar dejará libre su asiento en {table.name}.</p>}
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Grupo" htmlFor="edit-group">
-            <GroupSelect id="edit-group" groups={doc.groups} value={draft.groupId} onChange={(groupId) => setDraft({ ...draft, groupId })} />
+            <GroupSelect id="edit-group" groups={doc.groups} value={draft.groupId} onChange={(groupId) => setDraft({ ...draft, groupId })} onCreate={onCreateGroup} />
           </Field>
           <Field label="Menú / dieta" htmlFor="edit-diet">
             <input id="edit-diet" className="input" list="diet-options" placeholder="Ej. Vegetariano" value={draft.diet} onChange={(e) => setDraft({ ...draft, diet: e.target.value })} />

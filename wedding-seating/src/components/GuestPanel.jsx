@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react';
-import { FileUp, Pencil, Search, Settings2, UserPlus, X } from 'lucide-react';
+import { FileUp, Pencil, Plus, Search, UserPlus, X } from 'lucide-react';
 import { Avatar } from './ui';
 import { useGuestFilter } from '../hooks/useGuestFilter';
 
@@ -43,13 +43,13 @@ export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuest
   const groupColor = useMemo(() => new Map(doc.groups.map((g) => [g.id, g.color])), [doc.groups]);
   const { sections, count, tableName } = useGuestFilter(doc, { query, groupFilter, scope });
 
-  const total = doc.guests.length;
+  const total = doc.guests.filter((g) => g.rsvp !== 'no').length;
   const seated = doc.guests.filter((g) => g.tableId != null).length;
   const capacity = doc.tables.reduce((s, t) => s + t.capacity, 0);
   const pct = total ? Math.round((seated / total) * 100) : 0;
   const counts = useMemo(() => {
     const m = new Map();
-    for (const g of doc.guests) if (g.tableId == null) m.set(g.groupId ?? '__none__', (m.get(g.groupId ?? '__none__') ?? 0) + 1);
+    for (const g of doc.guests) if (g.tableId == null && g.rsvp !== 'no') m.set(g.groupId ?? '__none__', (m.get(g.groupId ?? '__none__') ?? 0) + 1);
     return m;
   }, [doc.guests]);
 
@@ -95,9 +95,9 @@ export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuest
             {counts.get(g.id) ? <span className="opacity-60">{counts.get(g.id)}</span> : null}
           </button>
         ))}
-        <button className="chip border-dashed text-ink-3" onClick={onGroups} aria-label="Editar grupos">
-          <Settings2 size={12} />
-          Grupos
+        <button className="chip border-dashed border-gold text-gold hover:bg-gold-soft" onClick={onGroups}>
+          <Plus size={12} />
+          Grupo
         </button>
       </div>
 

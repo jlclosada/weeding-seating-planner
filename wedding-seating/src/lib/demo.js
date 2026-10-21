@@ -30,6 +30,12 @@ export function buildDemoDoc() {
     const i = headTable.indexOf(g.name);
     if (i >= 0) Object.assign(g, { tableId: head.id, seat: i });
   });
+  // Casi todos han confirmado; alguno sigue pendiente y otro no podrá venir.
+  doc.guests.forEach((g) => {
+    g.rsvp = ['Nerea Soto', 'Alba Serrano', 'Óscar Lago'].includes(g.name) ? 'pending' : g.name === 'Javier Quintana' ? 'no' : 'yes';
+  });
+  doc.tasks.slice(0, 4).forEach((t) => (t.done = true));
+  doc.budgetCap = 22000;
   const toSeat = { ...doc, guests: doc.guests.filter((g) => !pendingNames.has(g.name)) };
   const { guests } = autoAssign(toSeat);
   const seated = new Map(guests.map((g) => [g.id, g]));
