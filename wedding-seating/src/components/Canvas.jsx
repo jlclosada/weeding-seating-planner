@@ -21,6 +21,8 @@ export default function Canvas({
   dispatch,
   onSeatClick,
   onSeatPointerDown,
+  onSeatTouchStart,
+  suspendRef,
   onTableSelect,
   onBackgroundClick,
   insets = { top: 0, right: 0, bottom: 0, left: 0 },
@@ -39,6 +41,7 @@ export default function Canvas({
   const suppressClick = useRef(false);
   const frame = useRef(0);
   const fitted = useRef(false);
+  const [movingId, setMovingId] = useState(null);
 
   const fit = useCallback((animate = true) => {
     const node = el.current;
@@ -115,7 +118,15 @@ export default function Canvas({
     [centerOn],
   );
 
-  useImperativeHandle(ref, () => ({ fit, zoomBy, centerOn, viewCenter, reveal }), [fit, zoomBy, centerOn, viewCenter, reveal]);
+  const panBy = useCallback((dx, dy) => setView((v) => ({ ...v, anim: false, x: v.x + dx, y: v.y + dy })), []);
+  // Zona visible del plano (sin la parte tapada por la hoja inferior en móvil).
+  const getRect = useCallback(() => {
+    const r = el.current?.getBoundingClientRect();
+    if (!r) return null;
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom - insetsRef.current.bottom + 24 };
+  }, []);
+
+  useImperativeHandle(ref, () => ({ fit, zoomBy, centerOn, viewCenter, reveal, panBy, getRect }), [fit, zoomBy, centerOn, viewCenter, reveal, panBy, getRect]);
 
   useLayoutEffect(() => {
     if (!fitted.current) {
@@ -172,9 +183,10 @@ export default function Canvas({
           if (gesture.current === g) {
             g.type = 'table';
             navigator.vibrate?.(12);
+            setMovingId(table.id);
             onTableSelect(table.id);
           }
-        }, 250);
+        }, 300);
         gesture.current = g;
       } else {
         gesture.current = { ...base, type: 'table' };
@@ -188,6 +200,12 @@ export default function Canvas({
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const g = gesture.current;
     if (!g) return;
+    // Mientras se arrastra un invitado, el dedo no debe mover el plano.
+    if (suspendRef?.current && g.type !== 'pinch') {
+      clearTimeout(g.timer);
+      gesture.current = null;
+      return;
+    }
     if (g.type === 'pinch') {
       if (pointers.current.size < 2) return;
       const [a, b] = [...pointers.current.values()];
@@ -205,9 +223,18 @@ export default function Canvas({
       clearTimeout(g.timer);
       g.type = 'pan';
     }
-    if (!g.moved && g.type === 'table') dispatch({ type: 'history/checkpoint', label: 'Mover mesa' });
+    if (!g.moved && g.type === 'table') {
+      dispatch({ type: 'history/checkpoint', label: 'Mover mesa' });
+      setMovingId(g.id);
+    }
     // Capturamos el puntero solo al empezar a arrastrar: así los clics en asientos siguen llegando.
-    if (!g.moved) el.current.setPointerCapture?.(e.pointerId);
+    if (!g.moved) {
+      try {
+        el.current.setPointerCapture(e.pointerId);
+      } catch {
+        // Puntero no capturable (p. ej. ya liberado): seguimos sin captura.
+      }
+    }
     g.moved = true;
     if (g.type === 'pan') {
       setView((v) => ({ ...v, anim: false, x: g.vx + dx, y: g.vy + dy }));
@@ -235,6 +262,7 @@ export default function Canvas({
     }
     clearTimeout(g.timer);
     gesture.current = null;
+    setMovingId(null);
     if (g.moved) {
       suppressClick.current = true;
       setTimeout(() => (suppressClick.current = false), 0);
@@ -265,8 +293,8 @@ export default function Canvas({
   );
 
   const handlers = useMemo(
-    () => ({ onTablePointerDown, onTableSelect, onSeatClick: handleSeatClick, onSeatPointerDown: handleSeatPointerDown }),
-    [onTablePointerDown, onTableSelect, handleSeatClick, handleSeatPointerDown],
+    () => ({ onTablePointerDown, onTableSelect, onSeatClick: handleSeatClick, onSeatPointerDown: handleSeatPointerDown, onSeatTouchStart }),
+    [onTablePointerDown, onTableSelect, handleSeatClick, handleSeatPointerDown, onSeatTouchStart],
   );
 
   const matches = useMemo(() => {
@@ -302,6 +330,7 @@ export default function Canvas({
             seated={seatsByTable.get(t.id)}
             groupColor={groupColor}
             selected={selectedTableId === t.id}
+            lifted={movingId === t.id}
             conflict={conflictTables.has(t.id)}
             targetSeat={dropTarget && dropTarget.tableId === String(t.id) ? dropTarget.seat : -1}
             picking={picking}
@@ -313,6 +342,18 @@ export default function Canvas({
       </div>
 
       {children}
+
+      <div className="absolute right-3 z-20 flex flex-col overflow-hidden rounded-xl border border-line bg-card shadow-float lg:hidden" style={{ bottom: insets.bottom + 12 }} onPointerDown={(e) => e.stopPropagation()}>
+        <button className="flex h-10 w-10 items-center justify-center text-ink-2 active:bg-paper" onClick={() => zoomBy(1.25)} aria-label="Acercar">
+          <Plus size={17} />
+        </button>
+        <button className="flex h-10 w-10 items-center justify-center border-y border-line text-ink-2 active:bg-paper" onClick={() => zoomBy(1 / 1.25)} aria-label="Alejar">
+          <Minus size={17} />
+        </button>
+        <button className="flex h-10 w-10 items-center justify-center text-ink-2 active:bg-paper" onClick={() => fit()} aria-label="Encajar el plano">
+          <Maximize size={16} />
+        </button>
+      </div>
 
       <div className="absolute bottom-5 right-5 z-20 hidden items-center rounded-xl border border-line bg-card p-1 shadow-float lg:flex" style={{ right: 20 + insets.right }} onPointerDown={(e) => e.stopPropagation()}>
         <button className="icon-btn h-8 w-8 border-transparent" onClick={() => zoomBy(1 / 1.2)} aria-label="Alejar">

@@ -3,16 +3,18 @@ import { FileUp, Pencil, Plus, Search, UserPlus, X } from 'lucide-react';
 import { Avatar } from './ui';
 import { useGuestFilter } from '../hooks/useGuestFilter';
 
-export const GuestRow = memo(function GuestRow({ guest, color, tableName, picked, onPointerDown, onClick, onEdit, compact }) {
+export const GuestRow = memo(function GuestRow({ guest, color, tableName, picked, onPointerDown, onTouchStart, onClick, onEdit, compact }) {
   return (
     <div
       role="button"
       tabIndex={0}
       aria-pressed={picked}
       onPointerDown={onPointerDown ? (e) => onPointerDown(e, guest.id) : undefined}
+      onTouchStart={onTouchStart ? (e) => onTouchStart(e, guest.id) : undefined}
+      onContextMenu={onTouchStart ? (e) => e.preventDefault() : undefined}
       onClick={() => onClick(guest)}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick(guest))}
-      className={`group flex cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 ${compact ? 'py-1.5' : 'py-[7px]'} text-[13.5px] transition-colors ${
+      className={`no-callout group flex cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 ${compact ? 'py-1.5' : 'py-[7px]'} text-[13.5px] transition-colors ${
         picked ? 'bg-gold-soft ring-1 ring-gold' : 'hover:bg-paper'
       } ${tableName ? 'text-ink-2' : 'text-ink'}`}
     >
@@ -37,7 +39,7 @@ export const GuestRow = memo(function GuestRow({ guest, color, tableName, picked
   );
 });
 
-export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuestPointerDown, onAdd, onImport, onGroups, query, setQuery }) {
+export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuestPointerDown, onGuestTouchStart, onAdd, onImport, onGroups, query, setQuery }) {
   const [groupFilter, setGroupFilter] = useState(null);
   const [scope, setScope] = useState('unseated');
   const groupColor = useMemo(() => new Map(doc.groups.map((g) => [g.id, g.color])), [doc.groups]);
@@ -133,6 +135,7 @@ export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuest
                 tableName={g.tableId != null ? tableName.get(g.tableId) : null}
                 picked={pickedGuestId === g.id}
                 onPointerDown={onGuestPointerDown}
+                onTouchStart={onGuestTouchStart}
                 onClick={onPick}
                 onEdit={onEdit}
               />
