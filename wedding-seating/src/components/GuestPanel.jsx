@@ -1,18 +1,20 @@
 import { memo, useMemo, useState } from 'react';
-import { FileUp, Pencil, Search, Settings2, UserPlus, X } from 'lucide-react';
+import { FileUp, Pencil, Plus, Search, UserPlus, X } from 'lucide-react';
 import { Avatar } from './ui';
 import { useGuestFilter } from '../hooks/useGuestFilter';
 
-export const GuestRow = memo(function GuestRow({ guest, color, tableName, picked, onPointerDown, onClick, onEdit, compact }) {
+export const GuestRow = memo(function GuestRow({ guest, color, tableName, picked, onPointerDown, onTouchStart, onClick, onEdit, compact }) {
   return (
     <div
       role="button"
       tabIndex={0}
       aria-pressed={picked}
       onPointerDown={onPointerDown ? (e) => onPointerDown(e, guest.id) : undefined}
+      onTouchStart={onTouchStart ? (e) => onTouchStart(e, guest.id) : undefined}
+      onContextMenu={onTouchStart ? (e) => e.preventDefault() : undefined}
       onClick={() => onClick(guest)}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick(guest))}
-      className={`group flex cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 ${compact ? 'py-1.5' : 'py-[7px]'} text-[13.5px] transition-colors ${
+      className={`no-callout group flex cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 ${compact ? 'py-1.5' : 'py-[7px]'} text-[13.5px] transition-colors ${
         picked ? 'bg-gold-soft ring-1 ring-gold' : 'hover:bg-paper'
       } ${tableName ? 'text-ink-2' : 'text-ink'}`}
     >
@@ -37,19 +39,19 @@ export const GuestRow = memo(function GuestRow({ guest, color, tableName, picked
   );
 });
 
-export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuestPointerDown, onAdd, onImport, onGroups, query, setQuery }) {
+export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuestPointerDown, onGuestTouchStart, onAdd, onImport, onGroups, query, setQuery }) {
   const [groupFilter, setGroupFilter] = useState(null);
   const [scope, setScope] = useState('unseated');
   const groupColor = useMemo(() => new Map(doc.groups.map((g) => [g.id, g.color])), [doc.groups]);
   const { sections, count, tableName } = useGuestFilter(doc, { query, groupFilter, scope });
 
-  const total = doc.guests.length;
+  const total = doc.guests.filter((g) => g.rsvp !== 'no').length;
   const seated = doc.guests.filter((g) => g.tableId != null).length;
   const capacity = doc.tables.reduce((s, t) => s + t.capacity, 0);
   const pct = total ? Math.round((seated / total) * 100) : 0;
   const counts = useMemo(() => {
     const m = new Map();
-    for (const g of doc.guests) if (g.tableId == null) m.set(g.groupId ?? '__none__', (m.get(g.groupId ?? '__none__') ?? 0) + 1);
+    for (const g of doc.guests) if (g.tableId == null && g.rsvp !== 'no') m.set(g.groupId ?? '__none__', (m.get(g.groupId ?? '__none__') ?? 0) + 1);
     return m;
   }, [doc.guests]);
 
@@ -95,9 +97,9 @@ export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuest
             {counts.get(g.id) ? <span className="opacity-60">{counts.get(g.id)}</span> : null}
           </button>
         ))}
-        <button className="chip border-dashed text-ink-3" onClick={onGroups} aria-label="Editar grupos">
-          <Settings2 size={12} />
-          Grupos
+        <button className="chip border-dashed border-gold text-gold hover:bg-gold-soft" onClick={onGroups}>
+          <Plus size={12} />
+          Grupo
         </button>
       </div>
 
@@ -133,6 +135,7 @@ export default function GuestPanel({ doc, pickedGuestId, onPick, onEdit, onGuest
                 tableName={g.tableId != null ? tableName.get(g.tableId) : null}
                 picked={pickedGuestId === g.id}
                 onPointerDown={onGuestPointerDown}
+                onTouchStart={onGuestTouchStart}
                 onClick={onPick}
                 onEdit={onEdit}
               />

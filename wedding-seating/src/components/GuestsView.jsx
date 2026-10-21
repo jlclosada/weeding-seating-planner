@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { FileUp, Search, Trash2, UserPlus } from 'lucide-react';
+import { FileUp, Palette, Search, Trash2, UserPlus } from 'lucide-react';
 import { Avatar } from './ui';
 import { normalize, plural } from '../lib/text';
+import { RSVP } from '../state/model';
 
 const SORTS = {
   name: (a, b) => normalize(a.name).localeCompare(normalize(b.name), 'es'),
   table: (tableIndex) => (a, b) => (tableIndex.get(a.tableId) ?? 1e9) - (tableIndex.get(b.tableId) ?? 1e9) || (a.seat ?? 0) - (b.seat ?? 0),
 };
 
-export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onDelete, onSeatAt }) {
+export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onGroups, onDelete, onSeatAt }) {
   const [query, setQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState('');
   const [status, setStatus] = useState('all');
@@ -27,7 +28,7 @@ export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onD
     const q = normalize(query);
     const tableIndex = new Map(doc.tables.map((t, i) => [t.id, i]));
     return doc.guests
-      .filter((g) => (!q || normalize(g.name).includes(q) || normalize(g.diet).includes(q)) && (!groupFilter || (g.groupId ?? '') === groupFilter) && (status === 'all' || (status === 'seated') === (g.tableId != null)))
+      .filter((g) => (!q || normalize(g.name).includes(q) || normalize(g.diet).includes(q)) && (!groupFilter || (g.groupId ?? '') === groupFilter) && (status === 'all' || (status === 'seated' ? g.tableId != null : status === 'unseated' ? g.tableId == null && g.rsvp !== 'no' : g.rsvp === status)))
       .sort(sort === 'name' ? SORTS.name : SORTS.table(tableIndex));
   }, [doc.guests, doc.tables, query, groupFilter, status, sort]);
 
@@ -40,10 +41,14 @@ export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onD
           <div className="label">Lista de invitados</div>
           <h1 className="mt-2 font-serif text-[38px] font-medium leading-none">{plural(doc.guests.length, 'invitado', 'invitados')}</h1>
           <p className="mt-2 text-[13px] text-ink-3">
-            {doc.guests.filter((g) => g.tableId != null).length} sentados · {diets ? plural(diets, 'menú especial', 'menús especiales') : 'sin menús especiales'}
+            {doc.guests.filter((g) => g.rsvp === 'yes').length} confirmados · {doc.guests.filter((g) => g.rsvp === 'pending').length} sin confirmar · {doc.guests.filter((g) => g.rsvp === 'no').length} no asisten · {doc.guests.filter((g) => g.tableId != null).length} sentados
+            {diets ? ` · ${plural(diets, 'menú especial', 'menús especiales')}` : ''}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={onGroups}>
+            <Palette size={15} /> Grupos
+          </button>
           <button className="btn" onClick={onImport}>
             <FileUp size={15} /> Importar
           </button>
@@ -69,6 +74,9 @@ export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onD
         <select className="input px-2 text-[13px] md:w-auto md:px-3 md:text-[14px]" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filtrar por estado">
           <option value="all">Estado: todos</option>
           <option value="unseated">Sin mesa</option>
+          <option value="yes">Confirmados</option>
+          <option value="pending">Sin confirmar</option>
+          <option value="no">No asisten</option>
           <option value="seated">Sentados</option>
         </select>
         <select className="input px-2 text-[13px] md:w-auto md:px-3 md:text-[14px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Ordenar">
@@ -78,15 +86,15 @@ export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onD
       </div>
 
       <div className="scroll-thin mt-4 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-line bg-card">
-        <div className="sticky top-0 z-[1] hidden grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_40px] gap-3 border-b border-line bg-card px-4 py-3 md:grid">
-          {['Nombre', 'Grupo', 'Mesa', 'Menú', ''].map((h) => (
+        <div className="sticky top-0 z-[1] hidden grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1.1fr)_40px] gap-3 border-b border-line bg-card px-4 py-3 md:grid">
+          {['Nombre', 'Grupo', 'Asistencia', 'Mesa', 'Menú', ''].map((h) => (
             <span key={h} className="label">
               {h}
             </span>
           ))}
         </div>
         {rows.map((g) => (
-          <div key={g.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-b border-paper-2 px-4 py-2.5 last:border-0 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_40px]">
+          <div key={g.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-b border-paper-2 px-4 py-2.5 last:border-0 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1.1fr)_40px]">
             <button className="flex min-w-0 items-center gap-3 text-left" onClick={() => onEdit(g)}>
               <Avatar name={g.name} color={groupColor.get(g.groupId)} size={30} />
               <span className="min-w-0">
@@ -94,6 +102,7 @@ export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onD
                 <span className="block truncate text-[11.5px] text-ink-3 md:hidden">
                   {groupName.get(g.groupId) ?? 'Sin grupo'} · {g.tableId != null ? `${tableName.get(g.tableId)}, asiento ${g.seat + 1}` : 'Sin mesa'}
                   {g.diet ? ` · ${g.diet}` : ''}
+                  {g.rsvp !== 'pending' ? ` · ${RSVP[g.rsvp]}` : ''}
                 </span>
                 {g.note && <span className="hidden truncate text-[11.5px] text-ink-3 md:block">{g.note}</span>}
               </span>
@@ -115,6 +124,19 @@ export default function GuestsView({ doc, dispatch, onEdit, onAdd, onImport, onD
               ))}
             </select>
             <select
+              className={`input col-span-2 hidden h-9 text-[13px] md:col-span-1 md:block ${g.rsvp === 'yes' ? 'text-ok' : g.rsvp === 'no' ? 'text-danger' : 'text-ink-3'}`}
+              value={g.rsvp}
+              onChange={(e) => dispatch({ type: 'guest/update', id: g.id, patch: { rsvp: e.target.value }, label: 'Cambiar asistencia' })}
+              aria-label={`Asistencia de ${g.name}`}
+            >
+              {Object.entries(RSVP).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <select
+              disabled={g.rsvp === 'no'}
               className={`input col-span-2 hidden h-9 text-[13px] md:col-span-1 md:block ${g.tableId == null ? 'text-ink-3' : ''}`}
               value={g.tableId == null ? '' : String(g.tableId)}
               onChange={(e) => onSeatAt(g, e.target.value)}

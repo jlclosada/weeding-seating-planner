@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, PieChart, Users } from 'lucide-react';
+import { ClipboardList, LayoutGrid, PieChart, Users } from 'lucide-react';
 import { StoreProvider, useStore } from './state/store';
 import { ToastProvider, useToast } from './components/Toasts';
 import TopBar from './components/TopBar';
@@ -9,20 +9,22 @@ import Canvas from './components/Canvas';
 import Inspector from './components/Inspector';
 import GuestsView from './components/GuestsView';
 import SummaryView from './components/SummaryView';
+import PlanningView from './components/PlanningView';
 import MobileSheet from './components/MobileSheet';
 import { AutoSeatPill, EmptyState, PickBanner } from './components/PlanOverlays';
 import { Avatar } from './components/ui';
 import { AddGuestsDialog, EditGuestDialog, GroupsDialog, ImportDialog } from './components/dialogs/GuestDialogs';
 import { ConfirmDialog, EventDialog, TemplatesDialog } from './components/dialogs/PlanDialogs';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useGuestDrag } from './hooks/useGuestDrag';
 import { analyze, autoAssign } from './lib/autoAssign';
 import { findFreeSpot, layoutTables } from './lib/geometry';
-import { exportBackup, exportExcel, exportPDF, readBackup } from './lib/exporters';
+import { exportBackup, exportExcel, exportPDF, exportPlaceCards, readBackup } from './lib/exporters';
 import { buildDemoDoc } from './lib/demo';
 import { normalize, plural } from './lib/text';
 import { PALETTE, createEmptyDoc, makeGuest, makeTable, uid } from './state/model';
 
-const VIEW_ICONS = { plan: LayoutGrid, guests: Users, summary: PieChart };
+const VIEW_ICONS = { plan: LayoutGrid, guests: Users, summary: PieChart, planning: ClipboardList };
 const isTyping = (el) => el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
 function nextTableName(tables) {
@@ -40,14 +42,12 @@ function Planner() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const [view, setView] = useState('plan');
+  const [planningSection, setPlanningSection] = useState('budget');
   const [selectedTableId, setSelectedTableId] = useState(null);
   const [pickedGuestId, setPickedGuestId] = useState(null);
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState(null);
-  const [drag, setDrag] = useState(null);
-  const [dropTarget, setDropTarget] = useState(null);
   const canvas = useRef(null);
-  const ghost = useRef(null);
   const backupInput = useRef(null);
   const docRef = useRef(doc);
   docRef.current = doc;
@@ -66,7 +66,7 @@ function Planner() {
 
   const selectedTable = tableById.get(selectedTableId) ?? null;
   const pickedGuest = guestById.get(pickedGuestId) ?? null;
-  const unseatedCount = doc.guests.filter((g) => g.tableId == null).length;
+  const unseatedCount = doc.guests.filter((g) => g.tableId == null && g.rsvp !== 'no').length;
 
   const withUndo = useCallback((message) => toast.show(message, { action: { label: 'Deshacer', onClick: undo } }), [toast, undo]);
   const openDialog = (type, payload) => setDialog({ type, payload });
@@ -133,7 +133,8 @@ function Planner() {
 
   const onSeatClick = useCallback(
     (table, seat, guest) => {
-      setSelectedTableId(table.id);
+      // En móvil el panel de mesa tapa medio plano: solo lo abrimos al tocar una silla libre sin nadie elegido.
+      if (isDesktop || (pickedGuestId == null && !guest)) setSelectedTableId(table.id);
       if (pickedGuestId != null) {
         if (guest?.id === pickedGuestId) return setPickedGuestId(null);
         assign(pickedGuestId, table.id, seat);
@@ -143,7 +144,7 @@ function Planner() {
         setPickedGuestId(guest.id);
       }
     },
-    [assign, pickedGuestId],
+    [assign, isDesktop, pickedGuestId],
   );
 
   const onPick = useCallback(
@@ -168,7 +169,7 @@ function Planner() {
 
   const autoSeat = useCallback(() => {
     const current = docRef.current;
-    if (!current.guests.some((g) => g.tableId == null)) return toast.show('Todos tus invitados ya tienen sitio');
+    if (!current.guests.some((g) => g.tableId == null && g.rsvp !== 'no')) return toast.show('Todos tus invitados ya tienen sitio');
     const r = autoAssign(current, { near: canvas.current?.viewCenter() });
     dispatch({ type: 'seats/apply', guests: r.guests, tables: r.tables, label: 'Sentar automáticamente' });
     setView('plan');
@@ -182,62 +183,25 @@ function Planner() {
     withUndo('Todos los invitados vuelven a la lista');
   }, [dispatch, withUndo]);
 
-  // ---------- Arrastrar invitados (ratón) ----------
-  const beginGuestDrag = useCallback(
-    (e, guestId) => {
-      if (e.pointerType !== 'mouse' || e.button !== 0) return;
-      const start = { x: e.clientX, y: e.clientY };
-      let active = false;
-      let target = null;
-      const sameTarget = (a, b) => a === b || (a && b && a.list === b.list && a.tableId === b.tableId && a.seat === b.seat);
-
-      const move = (ev) => {
-        if (!active) {
-          if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 5) return;
-          active = true;
-          document.body.style.cursor = 'grabbing';
-          setDrag({ guestId });
+  // ---------- Arrastrar invitados (ratón y táctil) ----------
+  const onGuestDrop = useCallback(
+    (guestId, target) => {
+      const current = docRef.current;
+      if (target.list) {
+        if (current.guests.find((g) => g.id === guestId)?.tableId != null) dispatch({ type: 'seat/unassign', guestId, label: 'Quitar de la mesa' });
+      } else {
+        const table = current.tables.find((t) => String(t.id) === target.tableId);
+        if (table) {
+          assign(guestId, table.id, target.seat);
+          if (isDesktop) setSelectedTableId(table.id);
+          navigator.vibrate?.(10);
         }
-        if (ghost.current) ghost.current.style.transform = `translate(${ev.clientX + 10}px, ${ev.clientY + 10}px)`;
-        const el = document.elementFromPoint(ev.clientX, ev.clientY);
-        const seatEl = el?.closest('[data-seat]');
-        const next = seatEl ? { tableId: seatEl.dataset.tableId, seat: Number(seatEl.dataset.seat) } : el?.closest('[data-dropzone="list"]') ? { list: true } : null;
-        if (!sameTarget(next, target)) {
-          target = next;
-          setDropTarget(next);
-        }
-      };
-      const up = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        document.body.style.cursor = '';
-        if (active) {
-          const swallow = (ev) => {
-            ev.stopPropagation();
-            ev.preventDefault();
-          };
-          window.addEventListener('click', swallow, { capture: true, once: true });
-          setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
-          const current = docRef.current;
-          if (target?.list) {
-            if (current.guests.find((g) => g.id === guestId)?.tableId != null) dispatch({ type: 'seat/unassign', guestId, label: 'Quitar de la mesa' });
-          } else if (target) {
-            const table = current.tables.find((t) => String(t.id) === target.tableId);
-            if (table) {
-              assign(guestId, table.id, target.seat);
-              setSelectedTableId(table.id);
-            }
-          }
-          setPickedGuestId(null);
-        }
-        setDrag(null);
-        setDropTarget(null);
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
+      }
+      setPickedGuestId(null);
     },
-    [assign, dispatch],
+    [assign, dispatch, isDesktop],
   );
+  const { drag, dropTarget, ghostRef: ghost, dragging, startMouse: beginGuestDrag, startTouch: beginGuestTouch } = useGuestDrag({ canvas, onDrop: onGuestDrop });
 
   // ---------- Invitados ----------
   const addGuests = useCallback(
@@ -247,6 +211,18 @@ function Planner() {
       withUndo(`${plural(guests.length, 'invitado añadido', 'invitados añadidos')}`);
     },
     [dispatch, withUndo],
+  );
+
+  const createGroup = useCallback(
+    (name) => {
+      const used = new Set(docRef.current.groups.map((g) => g.color));
+      const color = PALETTE.find((c) => !used.has(c)) ?? PALETTE[docRef.current.groups.length % PALETTE.length];
+      const id = uid();
+      dispatch({ type: 'group/add', id, name, color, label: 'Crear grupo' });
+      toast.show(`Grupo «${name.trim()}» creado`);
+      return id;
+    },
+    [dispatch, toast],
   );
 
   const importGuests = useCallback(
@@ -329,9 +305,15 @@ function Planner() {
     autoSeat,
     clearAllSeats,
     editEvent: () => openDialog('event'),
+    openGroups: () => openDialog('groups'),
+    openPlanning: (section) => {
+      setPlanningSection(section);
+      setView('planning');
+    },
     openTemplates: () => openDialog('templates'),
     exportPDF: () => runExport(exportPDF, 'PDF'),
     exportExcel: () => runExport(exportExcel, 'Excel'),
+    exportCards: () => runExport(exportPlaceCards, 'PDF de tarjetas'),
     exportBackup: () => exportBackup(doc),
     importBackup: () => backupInput.current?.click(),
     loadDemo: () => confirmThen('¿Cargar la boda de ejemplo?', 'Sustituye tu plano actual por uno de ejemplo. Podrás deshacerlo, pero guarda antes una copia si quieres conservarlo.', 'Cargar ejemplo', () => replaceDoc(buildDemoDoc(), 'Boda de ejemplo cargada')),
@@ -349,6 +331,14 @@ function Planner() {
       toast.show(err.message || 'No se pudo leer la copia', { tone: 'error' });
     }
   };
+
+  // En móvil, al abrir el panel de una mesa, la desplazamos para que quede visible encima.
+  const sheetHeight = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.52) : 400;
+  useEffect(() => {
+    if (isDesktop || selectedTableId == null) return undefined;
+    const id = setTimeout(() => canvas.current?.reveal(docRef.current.tables.find((t) => t.id === selectedTableId)), 80);
+    return () => clearTimeout(id);
+  }, [isDesktop, selectedTableId]);
 
   // ---------- Atajos de teclado ----------
   useEffect(() => {
@@ -417,12 +407,14 @@ function Planner() {
         dispatch={dispatch}
         onSeatClick={onSeatClick}
         onSeatPointerDown={beginGuestDrag}
+        onSeatTouchStart={beginGuestTouch}
+        suspendRef={dragging}
         onTableSelect={setSelectedTableId}
         onBackgroundClick={() => {
           setSelectedTableId(null);
           setPickedGuestId(null);
         }}
-        insets={isDesktop ? { top: 64, right: selectedTable ? 340 : 0, bottom: 24, left: 0 } : { top: 70, right: 0, bottom: 140, left: 0 }}
+        insets={isDesktop ? { top: 64, right: selectedTable ? 340 : 0, bottom: 24, left: 0 } : { top: 70, right: 0, bottom: selectedTable && !pickedGuest ? sheetHeight : 156, left: 0 }}
       >
         {!doc.tables.length && <EmptyState guests={doc.guests.length} onAddGuests={() => openDialog('addGuests')} onTemplates={actions.openTemplates} onAddTable={addTable} onDemo={actions.loadDemo} />}
         {pickedGuest && (
@@ -443,7 +435,7 @@ function Planner() {
         </div>
       )}
       {!isDesktop && (
-        <MobileSheet doc={doc} pickedGuestId={pickedGuestId} onPick={onPick} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onAutoSeat={autoSeat} query={query} setQuery={setQuery}>
+        <MobileSheet doc={doc} dragging={drag != null} draggingSeated={drag != null && guestById.get(drag.guestId)?.tableId != null} onGuestTouchStart={beginGuestTouch} pickedGuestId={pickedGuestId} onPick={onPick} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onGroups={actions.openGroups} onAutoSeat={autoSeat} query={query} setQuery={setQuery}>
           {selectedTable && !pickedGuest ? inspector : null}
         </MobileSheet>
       )}
@@ -456,7 +448,7 @@ function Planner() {
     <div className="flex h-dvh flex-col overflow-hidden">
       <TopBar doc={doc} view={view} setView={setView} compact={!isDesktop} store={store} actions={actions} />
 
-      <main className="relative min-h-0 flex-1">
+      <main key={view} className="view-in relative min-h-0 flex-1">
         {view === 'plan' &&
           (isDesktop ? (
             <div className="grid h-full grid-cols-[316px_minmax(0,1fr)]">
@@ -466,6 +458,7 @@ function Planner() {
                 onPick={onPick}
                 onEdit={editGuest}
                 onGuestPointerDown={beginGuestDrag}
+                onGuestTouchStart={beginGuestTouch}
                 onAdd={() => openDialog('addGuests')}
                 onImport={() => openDialog('import')}
                 onGroups={() => openDialog('groups')}
@@ -478,10 +471,20 @@ function Planner() {
             plan
           ))}
         {view === 'guests' && (
-          <GuestsView doc={doc} dispatch={dispatch} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onImport={() => openDialog('import')} onDelete={deleteGuest} onSeatAt={seatAtTable} />
+          <GuestsView doc={doc} dispatch={dispatch} onEdit={editGuest} onAdd={() => openDialog('addGuests')} onImport={() => openDialog('import')} onGroups={actions.openGroups} onDelete={deleteGuest} onSeatAt={seatAtTable} />
+        )}
+        {view === 'planning' && (
+          <PlanningView
+            doc={doc}
+            dispatch={dispatch}
+            toast={toast}
+            section={planningSection}
+            setSection={setPlanningSection}
+            onRestoreVersion={(v) => openDialog('confirm', { title: `¿Restaurar «${v.name}»?`, body: 'Tu plano actual se sustituye por esta versión. Puedes deshacerlo.', confirmLabel: 'Restaurar', onConfirm: () => replaceDoc(v.doc, `«${v.name}» restaurada`) })}
+          />
         )}
         {view === 'summary' && (
-          <SummaryView doc={doc} onOpenTable={focusTable} onAutoSeat={autoSeat} onExportPDF={actions.exportPDF} onExportExcel={actions.exportExcel} onEditGuest={editGuest} />
+          <SummaryView doc={doc} onOpenPlanning={actions.openPlanning} onOpenTable={focusTable} onAutoSeat={autoSeat} onExportPDF={actions.exportPDF} onExportExcel={actions.exportExcel} onEditGuest={editGuest} />
         )}
       </main>
 
@@ -500,8 +503,8 @@ function Planner() {
       )}
 
       {drag && guestById.get(drag.guestId) && (
-        <div ref={ghost} className="pointer-events-none fixed left-0 top-0 z-[100]" style={{ transform: 'translate(-200px, -200px)' }}>
-          <div className="flex -rotate-2 items-center gap-2 rounded-full border border-line bg-card py-1 pl-1 pr-3 text-[13px] shadow-lift">
+        <div ref={ghost} className="pointer-events-none fixed left-0 top-0 z-[100]" style={{ transform: `translate(${drag.x}px, ${drag.y}px) translate(-50%, -125%)` }}>
+          <div className="drag-ghost flex -rotate-2 items-center gap-2 rounded-full border border-gold bg-card py-1 pl-1 pr-3 text-[13px] shadow-lift">
             <Avatar name={guestById.get(drag.guestId).name} color={groupColor.get(guestById.get(drag.guestId).groupId)} size={26} />
             {guestById.get(drag.guestId).name}
           </div>
@@ -510,7 +513,7 @@ function Planner() {
 
       <input ref={backupInput} type="file" accept="application/json,.json" className="hidden" onChange={onBackupFile} />
 
-      <AddGuestsDialog open={dialog?.type === 'addGuests'} onClose={closeDialog} doc={doc} onSubmit={addGuests} />
+      <AddGuestsDialog open={dialog?.type === 'addGuests'} onClose={closeDialog} doc={doc} onSubmit={addGuests} onCreateGroup={createGroup} />
       <ImportDialog open={dialog?.type === 'import'} onClose={closeDialog} doc={doc} onSubmit={importGuests} />
       <GroupsDialog open={dialog?.type === 'groups'} onClose={closeDialog} doc={doc} dispatch={dispatch} />
       <TemplatesDialog open={dialog?.type === 'templates'} onClose={closeDialog} hasTables={doc.tables.length > 0} onApply={applyTemplate} />
@@ -524,6 +527,7 @@ function Planner() {
           onSave={(patch, avoid) => saveGuest(editingGuest, patch, avoid)}
           onDelete={deleteGuest}
           onUnseat={unseat}
+          onCreateGroup={createGroup}
         />
       )}
       {dialog?.type === 'confirm' && <ConfirmDialog open {...dialog.payload} onClose={closeDialog} />}

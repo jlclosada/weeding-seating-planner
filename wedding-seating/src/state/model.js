@@ -43,6 +43,47 @@ export const DEFAULT_GROUPS = [
   { id: 'other', name: 'Otros', color: PALETTE[4] },
 ];
 
+export const RSVP = { pending: 'Pendiente', yes: 'Confirmado', no: 'No asiste' };
+
+const DEFAULT_BUDGET = [
+  ['Menú del banquete', 'Catering', 'guest', 95],
+  ['Barra libre', 'Catering', 'guest', 25],
+  ['Sillas', 'Mobiliario', 'guest', 5],
+  ['Mantelería', 'Decoración', 'table', 15],
+  ['Centros de mesa', 'Decoración', 'table', 30],
+  ['Fotografía y vídeo', 'Servicios', 'fixed', 1500],
+  ['Música / DJ', 'Servicios', 'fixed', 900],
+];
+
+const DEFAULT_TASKS = [
+  ['Reservar el lugar', 'Lugar'],
+  ['Contratar el catering', 'Catering'],
+  ['Prueba de menú', 'Catering'],
+  ['Enviar las invitaciones', 'Invitados'],
+  ['Cerrar confirmaciones de asistencia', 'Invitados'],
+  ['Contratar fotografía', 'Servicios'],
+  ['Música / DJ', 'Servicios'],
+  ['Flores y decoración', 'Decoración'],
+  ['Cerrar el plano de mesas', 'Plano'],
+  ['Imprimir el seating y las minutas', 'Plano'],
+];
+
+const DEFAULT_TIMELINE = [
+  ['18:00', 'Llegada de invitados', 30],
+  ['18:30', 'Ceremonia', 45],
+  ['19:15', 'Cóctel', 60],
+  ['20:15', 'Banquete', 120],
+  ['22:15', 'Primer baile y fiesta', 180],
+];
+
+export const makeBudgetItem = ({ name = '', category = 'Otros', mode = 'fixed', unit = 0, qty = 1, paid = false } = {}) => ({ id: uid(), name, category, mode, unit, qty, paid });
+export const makeTask = ({ title = '', category = 'General', due = '', done = false } = {}) => ({ id: uid(), title, category, due, done });
+export const makeMoment = ({ time = '12:00', title = '', duration = 30, note = '' } = {}) => ({ id: uid(), time, title, duration, note });
+
+const defaultBudget = () => DEFAULT_BUDGET.map(([name, category, mode, unit]) => makeBudgetItem({ name, category, mode, unit }));
+const defaultTasks = () => DEFAULT_TASKS.map(([title, category]) => makeTask({ title, category }));
+const defaultTimeline = () => DEFAULT_TIMELINE.map(([time, title, duration]) => makeMoment({ time, title, duration }));
+
 export const createEmptyDoc = () => ({
   version: DOC_VERSION,
   event: { title: 'Nuestra boda', date: '', venue: '' },
@@ -50,6 +91,10 @@ export const createEmptyDoc = () => ({
   guests: [],
   groups: DEFAULT_GROUPS.map((g) => ({ ...g })),
   avoid: [],
+  budgetCap: null,
+  budget: defaultBudget(),
+  tasks: defaultTasks(),
+  timeline: defaultTimeline(),
 });
 
 export const makeGuest = (name, groupId = null, extra = {}) => ({
@@ -60,6 +105,7 @@ export const makeGuest = (name, groupId = null, extra = {}) => ({
   seat: null,
   diet: '',
   note: '',
+  rsvp: 'pending',
   ...extra,
 });
 
@@ -177,6 +223,7 @@ export function normalizeDoc(raw) {
         tableId,
         seat,
         diet: typeof g.diet === 'string' ? g.diet : '',
+        rsvp: g.rsvp in RSVP ? g.rsvp : 'pending',
         note: typeof g.note === 'string' ? g.note : '',
       };
     });
@@ -187,5 +234,18 @@ export function normalizeDoc(raw) {
 
   const event = { ...base.event, ...(raw.event && typeof raw.event === 'object' ? raw.event : {}) };
 
-  return { version: DOC_VERSION, event, tables, guests, groups, avoid };
+  const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  const str = (v, d = '') => (typeof v === 'string' ? v : d);
+  const budget = Array.isArray(raw.budget)
+    ? raw.budget.filter((b) => b && b.id != null).map((b) => ({ id: b.id, name: str(b.name), category: str(b.category, 'Otros'), mode: ['guest', 'table', 'fixed'].includes(b.mode) ? b.mode : 'fixed', unit: Math.max(0, num(b.unit)), qty: Math.max(0, num(b.qty, 1)), paid: !!b.paid }))
+    : base.budget;
+  const tasks = Array.isArray(raw.tasks)
+    ? raw.tasks.filter((t) => t && t.id != null).map((t) => ({ id: t.id, title: str(t.title), category: str(t.category, 'General'), due: str(t.due), done: !!t.done }))
+    : base.tasks;
+  const timeline = Array.isArray(raw.timeline)
+    ? raw.timeline.filter((m) => m && m.id != null).map((m) => ({ id: m.id, time: /^\d{2}:\d{2}$/.test(m.time) ? m.time : '12:00', title: str(m.title), duration: Math.max(0, num(m.duration, 30)), note: str(m.note) }))
+    : base.timeline;
+  const budgetCap = raw.budgetCap == null || raw.budgetCap === '' ? null : Math.max(0, num(raw.budgetCap));
+
+  return { version: DOC_VERSION, event, tables, guests, groups, avoid, budgetCap, budget, tasks, timeline };
 }

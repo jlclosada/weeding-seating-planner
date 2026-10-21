@@ -54,7 +54,7 @@ export function autoAssign(doc, { near } = {}) {
 
   const buckets = new Map();
   for (const g of guests) {
-    if (g.tableId != null) continue;
+    if (g.tableId != null || g.rsvp === 'no') continue;
     const key = g.groupId ?? '__none__';
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(g);

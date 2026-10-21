@@ -1,4 +1,4 @@
-import { ArchiveRestore, Download, Eraser, FileDown, FileSpreadsheet, FileText, LayoutTemplate, MoreHorizontal, Plus, Redo2, RotateCcw, Sparkles, Undo2, Wand2 } from 'lucide-react';
+import { ArchiveRestore, Download, Eraser, FileDown, FileSpreadsheet, FileText, IdCard, LayoutTemplate, MoreHorizontal, Palette, Plus, Redo2, RotateCcw, Sparkles, Undo2, Wand2 } from 'lucide-react';
 import { Menu, MenuItem, MenuSeparator } from './ui';
 import { formatDate, monogram } from '../lib/text';
 import { VIEWS } from '../lib/views';
@@ -34,6 +34,9 @@ export default function TopBar({ doc, view, setView, compact, store, actions }) 
           <MenuItem icon={<FileDown size={16} />} onClick={actions.exportPDF} hint="Plano, mesas y lista alfabética">
             Descargar PDF
           </MenuItem>
+          <MenuItem icon={<IdCard size={16} />} onClick={actions.exportCards}>
+            Tarjetas de sitio
+          </MenuItem>
           <MenuItem icon={<FileSpreadsheet size={16} />} onClick={actions.exportExcel}>
             Descargar Excel
           </MenuItem>
@@ -42,6 +45,9 @@ export default function TopBar({ doc, view, setView, compact, store, actions }) 
       )}
       <MenuItem icon={<Wand2 size={16} />} onClick={actions.autoSeat} hint="Respeta a quien ya está sentado">
         Sentar automáticamente
+      </MenuItem>
+      <MenuItem icon={<Palette size={16} />} onClick={actions.openGroups} hint="Crear, renombrar y elegir colores">
+        Grupos de invitados
       </MenuItem>
       <MenuItem icon={<LayoutTemplate size={16} />} onClick={actions.openTemplates}>
         Distribuciones de mesas
@@ -75,7 +81,7 @@ export default function TopBar({ doc, view, setView, compact, store, actions }) 
         <span className="min-w-0">
           <span className="block truncate font-serif text-[20px] font-medium leading-tight sm:text-[22px]">{doc.event.title}</span>
           <span className="block truncate text-[11.5px] text-ink-3">
-            {compact ? `${seated} / ${doc.guests.length} sentados` : sub || 'Añade la fecha y el lugar'}
+            {compact ? `${seated} / ${doc.guests.filter((g) => g.rsvp !== 'no').length} sentados` : sub || 'Añade la fecha y el lugar'}
           </span>
         </span>
       </button>
@@ -118,6 +124,9 @@ export default function TopBar({ doc, view, setView, compact, store, actions }) 
         >
           <MenuItem icon={<FileText size={16} />} onClick={actions.exportPDF} hint="Plano, mesas y lista alfabética">
             PDF para imprimir
+          </MenuItem>
+          <MenuItem icon={<IdCard size={16} />} onClick={actions.exportCards} hint="Nombre y mesa, 8 por hoja A4">
+            Tarjetas de sitio
           </MenuItem>
           <MenuItem icon={<FileSpreadsheet size={16} />} onClick={actions.exportExcel} hint="Invitados y mesas">
             Excel

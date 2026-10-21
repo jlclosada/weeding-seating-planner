@@ -7,7 +7,7 @@ import { initials } from '../lib/text';
  * Una mesa en el plano. Se memoriza: solo se vuelve a pintar cuando cambia su
  * propia mesa, sus comensales o el estado visual que le afecta.
  */
-function TableNode({ table, seated, groupColor, selected, conflict, targetSeat, picking, matches, dimmed, handlers }) {
+function TableNode({ table, seated, groupColor, selected, lifted, conflict, targetSeat, picking, matches, dimmed, handlers }) {
   const shape = tableShape(table);
   const { halfW, halfH } = shape;
   const filled = seated.filter(Boolean).length;
@@ -16,7 +16,7 @@ function TableNode({ table, seated, groupColor, selected, conflict, targetSeat, 
 
   return (
     <div
-      className="absolute"
+      className={`absolute transition-transform duration-200 ${lifted ? 'z-10 scale-[1.04]' : ''}`}
       style={{ left: table.x - halfW, top: table.y - halfH, width: halfW * 2, height: halfH * 2 }}
       data-table={String(table.id)}
     >
@@ -38,7 +38,7 @@ function TableNode({ table, seated, groupColor, selected, conflict, targetSeat, 
         onPointerDown={(e) => handlers.onTablePointerDown(e, table)}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handlers.onTableSelect(table.id)}
         className={`absolute flex cursor-grab touch-none select-none flex-col items-center justify-center border bg-card text-center transition-[border-color,box-shadow] active:cursor-grabbing ${
-          selected ? 'border-gold shadow-[0_10px_28px_-12px_rgba(120,90,40,0.45)]' : 'border-line-2 shadow-[0_8px_22px_-14px_rgba(90,66,40,0.4)] hover:border-[#bba98c]'
+          lifted ? 'border-gold shadow-[0_26px_50px_-18px_rgba(90,60,20,0.55)]' : selected ? 'border-gold shadow-[0_10px_28px_-12px_rgba(120,90,40,0.45)]' : 'border-line-2 shadow-[0_8px_22px_-14px_rgba(90,66,40,0.4)] hover:border-[#bba98c]'
         } ${table.shape === 'rect' ? 'rounded-[10px]' : 'rounded-full'} ${dimmed ? 'opacity-50' : ''}`}
         style={{ left: halfW - shape.width / 2, top: halfH - shape.height / 2, width: shape.width, height: shape.height }}
       >
@@ -68,14 +68,16 @@ function TableNode({ table, seated, groupColor, selected, conflict, targetSeat, 
         const hit = matches && guest && matches.has(guest.id);
         return (
           <button
-            key={i}
+            key={`${i}-${guest?.id ?? 'libre'}`}
             type="button"
             data-seat={i}
             data-table-id={String(table.id)}
             onPointerDown={guest ? (e) => handlers.onSeatPointerDown(e, guest.id) : undefined}
+            onTouchStart={guest ? (e) => handlers.onSeatTouchStart(e, guest.id) : undefined}
+            onContextMenu={(e) => e.preventDefault()}
             onClick={(e) => handlers.onSeatClick(e, table, i, guest)}
             aria-label={guest ? `${guest.name}, asiento ${i + 1} de ${table.name}` : `Asiento libre ${i + 1} de ${table.name}`}
-            className={`seat group absolute flex items-center justify-center rounded-full font-semibold ${isTarget ? 'seat-target' : ''} ${
+            className={`seat group absolute flex items-center justify-center rounded-full font-semibold ${guest ? 'seat-pop' : ''} ${isTarget ? 'seat-target' : ''} ${
               guest ? 'border-[1.5px] hover:scale-110' : `border border-dashed ${picking ? 'border-gold bg-gold-soft hover:scale-110' : 'border-line-2 bg-card'}`
             } ${faded ? 'opacity-25' : ''} ${hit ? 'z-10 scale-125 shadow-[0_0_0_3px_var(--card),0_0_0_5px_var(--gold)]' : ''}`}
             style={{
